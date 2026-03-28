@@ -58,9 +58,15 @@ class DashboardPage(ctk.CTkFrame):
             "WHERE NOT EXISTS (SELECT 1 FROM marks m WHERE m.assessment_id=a.id)"
         ) or {}).get("n", 0)
 
+        school_mean_row = query_one(
+            "SELECT ROUND(AVG(score), 1) AS mean FROM marks"
+        ) or {}
+        school_mean = school_mean_row.get("mean") or "—"
+        mean_sub = "school average" if school_mean != "—" else "no marks yet"
+
         stats = [
             ("Total students", str(total_students), "active enrolment"),
-            ("School mean",    "—",                 "enter marks to compute"),
+            ("School mean",    str(school_mean),     mean_sub),
             ("Classes",        str(total_classes),   "across all forms"),
             ("Marks pending",  str(pending),         "assessments without marks"),
         ]
@@ -89,30 +95,52 @@ class DashboardPage(ctk.CTkFrame):
         label(sp, "Subject performance — school average",
               size=13, weight="bold").pack(anchor="w", pady=(0, 10))
 
-        subjects = [
-            ("Mathematics", 58.1, False),
-            ("English",     72.4, False),
-            ("Biology",     66.0, False),
-            ("History",     70.3, False),
-            ("Chemistry",   54.2, True),
-            ("Kiswahili",   68.7, False),
-        ]
-        for name_, score, low in subjects:
-            row_f = ctk.CTkFrame(sp, fg_color="transparent")
-            row_f.pack(fill="x", pady=3)
-            ctk.CTkLabel(row_f, text=name_, font=("", 12),
-                         text_color=TEXT_MUTED, width=90,
-                         anchor="w").pack(side="left")
-            bar_bg = ctk.CTkFrame(row_f, fg_color="#E5E7EB",
-                                  corner_radius=3, height=6, width=160)
-            bar_bg.pack(side="left", padx=8)
-            bar_bg.pack_propagate(False)
-            ctk.CTkFrame(bar_bg, fg_color=DANGER if low else ACCENT,
-                         corner_radius=3, height=6,
-                         width=int(score * 1.6)).place(x=0, y=0)
-            ctk.CTkLabel(row_f, text=f"{score:.1f}", font=("", 12, "bold"),
-                         text_color=DANGER if low else TEXT,
-                         width=36).pack(side="left")
+        # Load real subject averages from marks
+        subject_avgs = query(
+            """
+            SELECT s.name, AVG(m.score) AS avg_score
+            FROM marks m
+            JOIN subjects s ON m.subject_id = s.id
+            GROUP BY s.id, s.name
+            ORDER BY avg_score ASC
+            """
+        )
+
+        if not subject_avgs:
+            ctk.CTkFrame(sp, fg_color="#F3F4F6", corner_radius=8).pack(
+                fill="x", pady=(8, 0))
+            no_data = ctk.CTkFrame(sp, fg_color="#F3F4F6", corner_radius=8)
+            no_data.pack(fill="x", pady=(4, 0))
+            ctk.CTkLabel(no_data,
+                         text="No exam data yet.",
+                         font=("", 13, "bold"), text_color=TEXT).pack(
+                anchor="w", padx=14, pady=(10, 2))
+            ctk.CTkLabel(no_data,
+                         text="Subject averages will appear here after\n"
+                              "marks have been entered and analysed.",
+                         font=("", 12), text_color=TEXT_MUTED,
+                         justify="left").pack(anchor="w", padx=14, pady=(0, 10))
+        else:
+            school_mean = sum(r["avg_score"] for r in subject_avgs) / len(subject_avgs)
+            for r in subject_avgs:
+                score = round(r["avg_score"], 1)
+                low = score < school_mean * 0.9
+                row_f = ctk.CTkFrame(sp, fg_color="transparent")
+                row_f.pack(fill="x", pady=3)
+                ctk.CTkLabel(row_f, text=r["name"], font=("", 12),
+                             text_color=TEXT_MUTED, width=120,
+                             anchor="w").pack(side="left")
+                bar_bg = ctk.CTkFrame(row_f, fg_color="#E5E7EB",
+                                      corner_radius=3, height=6, width=140)
+                bar_bg.pack(side="left", padx=8)
+                bar_bg.pack_propagate(False)
+                ctk.CTkFrame(bar_bg,
+                             fg_color=DANGER if low else ACCENT,
+                             corner_radius=3, height=6,
+                             width=int(min(score * 1.4, 140))).place(x=0, y=0)
+                ctk.CTkLabel(row_f, text=f"{score}", font=("", 12, "bold"),
+                             text_color=DANGER if low else TEXT,
+                             width=36).pack(side="left")
 
         # Activity
         act_card = card(bottom)
@@ -171,7 +199,7 @@ class TermDialog(ctk.CTkToplevel):
 
     def _build(self):
         f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=24, pady=24)
+        f.pack(fill="both", expand=True, padx=28, pady=28)
 
         heading(f, "Set current term", size=16).pack(anchor="w", pady=(0, 4))
         muted(f, "Select the active term or create a new one.").pack(anchor="w", pady=(0, 14))

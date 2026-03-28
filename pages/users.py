@@ -202,7 +202,7 @@ class UserForm(ctk.CTkToplevel):
         outer = ctk.CTkScrollableFrame(self, fg_color=BG, corner_radius=0)
         outer.pack(fill="both", expand=True)
         f = ctk.CTkFrame(outer, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=24, pady=24)
+        f.pack(fill="both", expand=True, padx=28, pady=28)
 
         heading(f, self.title()).pack(anchor="w", pady=(0, 14))
 
@@ -339,7 +339,7 @@ class AssignmentsDialog(ctk.CTkToplevel):
 
     def _build(self):
         self._f = ctk.CTkFrame(self, fg_color=BG)
-        self._f.pack(fill="both", expand=True, padx=24, pady=24)
+        self._f.pack(fill="both", expand=True, padx=28, pady=28)
 
         heading(self._f,
                 f"Assignments — {self._user['full_name']}",

@@ -240,7 +240,7 @@ class StudentForm(ctk.CTkToplevel):
 
     def _build(self):
         f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=24, pady=24)
+        f.pack(fill="both", expand=True, padx=28, pady=28)
 
         heading(f, self.title()).pack(anchor="w", pady=(0, 16))
 
@@ -337,7 +337,7 @@ class TransferDialog(ctk.CTkToplevel):
 
     def _build(self):
         f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=24, pady=24)
+        f.pack(fill="both", expand=True, padx=28, pady=28)
 
         heading(f, "Transfer student", size=16).pack(anchor="w", pady=(0, 4))
         muted(f, f"Moving: {self._student['full_name']}").pack(anchor="w", pady=(0, 14))
@@ -379,7 +379,7 @@ class ConfirmDialog(ctk.CTkToplevel):
 
     def _build(self, message):
         f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=24, pady=24)
+        f.pack(fill="both", expand=True, padx=28, pady=28)
 
         label(f, message, size=13).pack(anchor="w", pady=(0, 20))
 
@@ -409,7 +409,7 @@ class PrintClassListDialog(ctk.CTkToplevel):
 
     def _build(self):
         f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=24, pady=24)
+        f.pack(fill="both", expand=True, padx=28, pady=28)
 
         heading(f, "Print class list", size=16).pack(anchor="w", pady=(0, 14))
 
@@ -484,7 +484,7 @@ class ImportDialog(ctk.CTkToplevel):
 
     def _build(self):
         f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=24, pady=24)
+        f.pack(fill="both", expand=True, padx=28, pady=28)
 
         heading(f, "Import students", size=16).pack(anchor="w", pady=(0, 4))
         muted(f, "Upload a CSV or Excel file with student data.").pack(

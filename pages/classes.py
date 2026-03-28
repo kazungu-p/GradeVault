@@ -312,7 +312,7 @@ class ClassForm(ctk.CTkToplevel):
 
     def _build(self):
         f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=24, pady=24)
+        f.pack(fill="both", expand=True, padx=28, pady=28)
 
         heading(f, self.title()).pack(anchor="w", pady=(0, 14))
 
@@ -367,7 +367,7 @@ class SubjectForm(ctk.CTkToplevel):
 
     def _build(self):
         f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=24, pady=24)
+        f.pack(fill="both", expand=True, padx=28, pady=28)
 
         heading(f, self.title()).pack(anchor="w", pady=(0, 14))
 
@@ -421,7 +421,7 @@ class BulkPromoteDialog(ctk.CTkToplevel):
 
     def _build(self):
         f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=24, pady=24)
+        f.pack(fill="both", expand=True, padx=28, pady=28)
 
         heading(f, "Bulk promote", size=16).pack(anchor="w", pady=(0, 4))
         muted(f, "Move all active students from one class to another.\n"
@@ -500,7 +500,7 @@ class ConfirmDialog(ctk.CTkToplevel):
         self.grab_set()
         self._on_confirm = on_confirm
         f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=24, pady=24)
+        f.pack(fill="both", expand=True, padx=28, pady=28)
         label(f, message, size=13).pack(anchor="w", pady=(0, 20))
         btn_row = ctk.CTkFrame(f, fg_color="transparent")
         btn_row.pack(fill="x")
@@ -521,7 +521,7 @@ class ErrorDialog(ctk.CTkToplevel):
         self.resizable(False, False)
         self.grab_set()
         f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=24, pady=24)
+        f.pack(fill="both", expand=True, padx=28, pady=28)
         label(f, message, size=13, color=DANGER).pack(anchor="w", pady=(0, 16))
         primary_btn(f, "OK", command=self.destroy, width=100).pack(anchor="e")
 
@@ -531,7 +531,7 @@ class RetireClassDialog(ctk.CTkToplevel):
     def __init__(self, parent, cls, on_done):
         super().__init__(parent)
         self.title("Retire class")
-        self.geometry("460x300")
+        self.geometry("560x320")
         self.resizable(False, False)
         self.grab_set()
         self._cls    = cls
@@ -543,7 +543,7 @@ class RetireClassDialog(ctk.CTkToplevel):
         from db.connection import query_one
 
         f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=24, pady=24)
+        f.pack(fill="both", expand=True, padx=28, pady=28)
 
         cls_label = (f"{self._cls['name']} "
                      f"{self._cls['stream']}").strip() \
