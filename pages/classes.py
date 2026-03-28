@@ -120,6 +120,13 @@ class ClassesPage(ctk.CTkFrame):
                           command=lambda cl=c: self._edit_class(cl)
                           ).pack(side="left", padx=(0, 4))
 
+            ctk.CTkButton(actions, text="Retire", width=56, height=26,
+                          fg_color="transparent", border_color=WARNING,
+                          border_width=1, text_color=WARNING, corner_radius=6,
+                          hover_color="#FFFBEB", font=("", 11),
+                          command=lambda cl=c: self._retire_class(cl)
+                          ).pack(side="left", padx=(0, 4))
+
             ctk.CTkButton(actions, text="Delete", width=58, height=26,
                           fg_color="transparent", border_color=DANGER,
                           border_width=1, text_color=DANGER, corner_radius=6,
@@ -161,6 +168,10 @@ class ClassesPage(ctk.CTkFrame):
         if not ok:
             ErrorDialog(self, msg)
         self._load_classes()
+
+    def _retire_class(self, cls):
+        label = f"{cls['name']} {cls['stream']}".strip() if cls['stream'] else cls['name']
+        RetireClassDialog(self, cls=cls, on_done=self._load_classes)
 
     def _bulk_promote_dialog(self):
         BulkPromoteDialog(self, on_done=self._load_classes)
@@ -513,3 +524,91 @@ class ErrorDialog(ctk.CTkToplevel):
         f.pack(fill="both", expand=True, padx=24, pady=24)
         label(f, message, size=13, color=DANGER).pack(anchor="w", pady=(0, 16))
         primary_btn(f, "OK", command=self.destroy, width=100).pack(anchor="e")
+
+
+# ── Retire class dialog ───────────────────────────────────────
+class RetireClassDialog(ctk.CTkToplevel):
+    def __init__(self, parent, cls, on_done):
+        super().__init__(parent)
+        self.title("Retire class")
+        self.geometry("460x300")
+        self.resizable(False, False)
+        self.grab_set()
+        self._cls    = cls
+        self._on_done = on_done
+        self._build()
+
+    def _build(self):
+        from routes.classes import retire_class
+        from db.connection import query_one
+
+        f = ctk.CTkFrame(self, fg_color=BG)
+        f.pack(fill="both", expand=True, padx=24, pady=24)
+
+        cls_label = (f"{self._cls['name']} "
+                     f"{self._cls['stream']}").strip() \
+            if self._cls.get("stream") else self._cls["name"]
+
+        heading(f, f"Retire  {cls_label}", size=16).pack(
+            anchor="w", pady=(0, 4))
+
+        count = query_one(
+            "SELECT COUNT(*) AS n FROM students "
+            "WHERE class_id=? AND status='active'",
+            (self._cls["id"],)) or {}
+        n = count.get("n", 0)
+
+        muted(f, f"{n} active student(s) will be archived.").pack(
+            anchor="w", pady=(0, 14))
+
+        # Info card
+        info = ctk.CTkFrame(f, fg_color="#FFFBEB",
+                             border_color=WARNING, border_width=1,
+                             corner_radius=8)
+        info.pack(fill="x", pady=(0, 16))
+        ctk.CTkLabel(
+            info,
+            text="Retiring archives all students in this class.\n"
+                 "Their records and marks are preserved.\n"
+                 "Choose whether to keep or remove the class itself.",
+            font=("", 12), text_color="#92400E",
+            justify="left",
+        ).pack(padx=12, pady=10, anchor="w")
+
+        self._msg = ctk.CTkLabel(f, text="", font=("", 12),
+                                  text_color=SUCCESS)
+        self._msg.pack(anchor="w", pady=(0, 8))
+
+        btn_row = ctk.CTkFrame(f, fg_color="transparent")
+        btn_row.pack(fill="x")
+
+        ghost_btn(btn_row, "Cancel",
+                  command=self.destroy, width=80).pack(side="left")
+
+        ctk.CTkButton(
+            btn_row,
+            text="Archive students, keep class",
+            width=200, height=36,
+            fg_color=WARNING, hover_color="#D97706",
+            corner_radius=8, font=("", 12),
+            command=lambda: self._do("archive"),
+        ).pack(side="right", padx=(8, 0))
+
+        ctk.CTkButton(
+            btn_row,
+            text="Archive & remove class",
+            width=180, height=36,
+            fg_color=DANGER, hover_color="#DC2626",
+            corner_radius=8, font=("", 12),
+            command=lambda: self._do("delete"),
+        ).pack(side="right")
+
+    def _do(self, action):
+        from routes.classes import retire_class
+        ok, msg = retire_class(self._cls["id"], action)
+        if ok:
+            self._msg.configure(text=f"✓ {msg}", text_color=SUCCESS)
+            self.after(1500, self.destroy)
+            self.after(1500, self._on_done)
+        else:
+            self._msg.configure(text=msg, text_color=DANGER)

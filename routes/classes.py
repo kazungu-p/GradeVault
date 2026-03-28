@@ -128,3 +128,25 @@ def toggle_subject_active(subject_id: int) -> None:
             "UPDATE subjects SET is_active=? WHERE id=?",
             (0 if row["is_active"] else 1, subject_id),
         )
+
+
+def retire_class(class_id: int, action: str) -> tuple[bool, str]:
+    """
+    Retire a class at year end.
+    action = 'archive' — archive all students, keep class
+    action = 'delete'  — archive all students, then delete class
+    """
+    from db.connection import execute, query_one
+    count = query_one(
+        "SELECT COUNT(*) AS n FROM students "
+        "WHERE class_id=? AND status='active'", (class_id,)
+    ) or {}
+    n = count.get("n", 0)
+    execute(
+        "UPDATE students SET status='archived', updated_at=CURRENT_TIMESTAMP "
+        "WHERE class_id=? AND status='active'", (class_id,)
+    )
+    if action == "delete":
+        execute("DELETE FROM classes WHERE id=?", (class_id,))
+        return True, f"{n} student(s) archived and class removed."
+    return True, f"{n} student(s) archived. Class kept for records."

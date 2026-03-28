@@ -67,7 +67,7 @@ class SetupWizard(ctk.CTkToplevel):
     def __init__(self, parent, on_complete):
         super().__init__(parent)
         self.title("GradeVault — First-time setup")
-        self.geometry("720x600")
+        self.geometry("820x620")
         self.resizable(False, False)
         self.grab_set()
         self.protocol("WM_DELETE_WINDOW", lambda: None)
@@ -89,7 +89,7 @@ class SetupWizard(ctk.CTkToplevel):
 
     # ── Shell ─────────────────────────────────────────────────
     def _build_shell(self):
-        self._left = ctk.CTkFrame(self, fg_color=ACCENT, width=190,
+        self._left = ctk.CTkFrame(self, fg_color=ACCENT, width=200,
                                    corner_radius=0)
         self._left.pack(side="left", fill="y")
         self._left.pack_propagate(False)
@@ -203,7 +203,7 @@ class SetupWizard(ctk.CTkToplevel):
 
         muted(self._content, "School name *").pack(anchor="w")
         self._sname = ctk.CTkEntry(
-            self._content, width=440,
+            self._content, width=520,
             fg_color=SURFACE, border_color=BORDER)
         self._sname.pack(anchor="w", pady=(2, 12))
         if self._school_name:
@@ -211,7 +211,7 @@ class SetupWizard(ctk.CTkToplevel):
 
         muted(self._content, "Motto (optional)").pack(anchor="w")
         self._smotto = ctk.CTkEntry(
-            self._content, width=440,
+            self._content, width=520,
             fg_color=SURFACE, border_color=BORDER)
         self._smotto.pack(anchor="w", pady=(2, 12))
         if self._school_motto:
@@ -271,7 +271,7 @@ class SetupWizard(ctk.CTkToplevel):
                     variable=var,
                     font=("", 12), text_color=TEXT,
                     fg_color=ACCENT, hover_color=ACCENT_DARK,
-                ).grid(row=0, column=i, padx=(0, 16), sticky="w")
+                ).grid(row=0, column=i, padx=(0, 20), sticky="w")
 
         self._class_err = ctk.CTkLabel(
             self._content, text="",
@@ -317,7 +317,7 @@ class SetupWizard(ctk.CTkToplevel):
             font=("", 11), text_color="#9CA3AF",
         ).pack(anchor="w", pady=(0, 4))
         self._streams_entry = ctk.CTkEntry(
-            self._stream_detail, width=440,
+            self._stream_detail, width=520,
             fg_color=SURFACE, border_color=BORDER,
             placeholder_text="Type stream names separated by commas")
         self._streams_entry.pack(anchor="w", pady=(0, 4))
@@ -349,7 +349,7 @@ class SetupWizard(ctk.CTkToplevel):
 
         initial = "\n".join(self._subjects if self._subjects else merged)
         self._subjects_box = ctk.CTkTextbox(
-            self._content, width=440, height=320,
+            self._content, width=520, height=320,
             fg_color=SURFACE, border_color=BORDER, font=("", 12))
         self._subjects_box.pack(anchor="w", pady=(2, 0))
         self._subjects_box.insert("1.0", initial)

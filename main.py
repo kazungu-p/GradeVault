@@ -81,7 +81,7 @@ class App(ctk.CTk):
         txt = ctk.CTkFrame(logo, fg_color="transparent")
         txt.pack(side="left", padx=8)
         label(txt, "GradeVault", size=14, weight="bold").pack(anchor="w")
-        muted(txt, school_name, size=10).pack(anchor="w", wraplength=130)
+        ctk.CTkLabel(txt, text=school_name, font=("", 10), text_color=TEXT_MUTED, wraplength=150, justify="left", anchor="w").pack(anchor="w")
 
         divider(sb).pack(fill="x")
 
