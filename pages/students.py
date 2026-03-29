@@ -24,7 +24,7 @@ class StudentsPage(ctk.CTkFrame):
 
         # Header row
         header = ctk.CTkFrame(self, fg_color="transparent")
-        header.pack(fill="x", pady=(0, 14))
+        header.pack(fill="x", pady=(0, 16))
 
         heading(header, "Students").pack(side="left")
         primary_btn(header, "+ Add student",
@@ -228,7 +228,7 @@ class StudentForm(ctk.CTkToplevel):
     def __init__(self, parent, title, classes, on_save, student=None):
         super().__init__(parent)
         self.title(title)
-        self.geometry("420x460")
+        self.geometry("460x500")
         self.resizable(False, False)
         self.grab_set()
         self._classes = classes
@@ -240,19 +240,19 @@ class StudentForm(ctk.CTkToplevel):
 
     def _build(self):
         f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=28, pady=28)
+        f.pack(fill="both", expand=True, padx=36, pady=32)
 
         heading(f, self.title()).pack(anchor="w", pady=(0, 16))
 
         # Full name
         muted(f, "Full name").pack(anchor="w")
         self._name = ctk.CTkEntry(f, width=360, fg_color=SURFACE, border_color=BORDER)
-        self._name.pack(pady=(2, 10))
+        self._name.pack(pady=(4, 14))
 
         # Admission number
         muted(f, "Admission number").pack(anchor="w")
         self._adm = ctk.CTkEntry(f, width=360, fg_color=SURFACE, border_color=BORDER)
-        self._adm.pack(pady=(2, 10))
+        self._adm.pack(pady=(4, 14))
 
         # Class
         muted(f, "Class & stream").pack(anchor="w")
@@ -263,7 +263,7 @@ class StudentForm(ctk.CTkToplevel):
                           fg_color=SURFACE, button_color=BORDER,
                           button_hover_color=ACCENT, text_color=TEXT,
                           dropdown_fg_color=SURFACE,
-                          ).pack(pady=(2, 10))
+                          ).pack(pady=(4, 14))
 
         # Gender
         muted(f, "Gender (optional)").pack(anchor="w")
@@ -273,7 +273,7 @@ class StudentForm(ctk.CTkToplevel):
                           fg_color=SURFACE, button_color=BORDER,
                           button_hover_color=ACCENT, text_color=TEXT,
                           dropdown_fg_color=SURFACE,
-                          ).pack(pady=(2, 10))
+                          ).pack(pady=(4, 14))
 
         self._error = ctk.CTkLabel(f, text="", text_color=DANGER, font=("", 12))
         self._error.pack()
@@ -327,7 +327,7 @@ class TransferDialog(ctk.CTkToplevel):
     def __init__(self, parent, student, classes, on_save):
         super().__init__(parent)
         self.title("Transfer student")
-        self.geometry("440x240")
+        self.geometry("480x280")
         self.resizable(False, False)
         self.grab_set()
         self._student = student
@@ -337,10 +337,10 @@ class TransferDialog(ctk.CTkToplevel):
 
     def _build(self):
         f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=28, pady=28)
+        f.pack(fill="both", expand=True, padx=36, pady=32)
 
         heading(f, "Transfer student", size=16).pack(anchor="w", pady=(0, 4))
-        muted(f, f"Moving: {self._student['full_name']}").pack(anchor="w", pady=(0, 14))
+        muted(f, f"Moving: {self._student['full_name']}").pack(anchor="w", pady=(0, 16))
 
         muted(f, "New class & stream").pack(anchor="w")
         self._class_labels = [f"{c['name']} {c['stream']}" for c in self._classes]
@@ -371,7 +371,7 @@ class ConfirmDialog(ctk.CTkToplevel):
     def __init__(self, parent, message, on_confirm):
         super().__init__(parent)
         self.title("Confirm")
-        self.geometry("440x180")
+        self.geometry("480x210")
         self.resizable(False, False)
         self.grab_set()
         self._on_confirm = on_confirm
@@ -379,7 +379,7 @@ class ConfirmDialog(ctk.CTkToplevel):
 
     def _build(self, message):
         f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=28, pady=28)
+        f.pack(fill="both", expand=True, padx=36, pady=32)
 
         label(f, message, size=13).pack(anchor="w", pady=(0, 20))
 
@@ -401,7 +401,7 @@ class PrintClassListDialog(ctk.CTkToplevel):
     def __init__(self, parent, classes):
         super().__init__(parent)
         self.title("Print class list")
-        self.geometry("380x240")
+        self.geometry("480x280")
         self.resizable(False, False)
         self.grab_set()
         self._classes = classes
@@ -409,9 +409,9 @@ class PrintClassListDialog(ctk.CTkToplevel):
 
     def _build(self):
         f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=28, pady=28)
+        f.pack(fill="both", expand=True, padx=36, pady=32)
 
-        heading(f, "Print class list", size=16).pack(anchor="w", pady=(0, 14))
+        heading(f, "Print class list", size=16).pack(anchor="w", pady=(0, 16))
 
         muted(f, "Select class").pack(anchor="w")
         class_labels = ["All classes"] + [f"{c['name']} {c['stream']}"
@@ -474,7 +474,7 @@ class ImportDialog(ctk.CTkToplevel):
     def __init__(self, parent, classes, on_done):
         super().__init__(parent)
         self.title("Import students from CSV / Excel")
-        self.geometry("520x480")
+        self.geometry("560x520")
         self.resizable(False, False)
         self.grab_set()
         self._classes = classes
@@ -484,7 +484,7 @@ class ImportDialog(ctk.CTkToplevel):
 
     def _build(self):
         f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=28, pady=28)
+        f.pack(fill="both", expand=True, padx=36, pady=32)
 
         heading(f, "Import students", size=16).pack(anchor="w", pady=(0, 4))
         muted(f, "Upload a CSV or Excel file with student data.").pack(
@@ -492,7 +492,7 @@ class ImportDialog(ctk.CTkToplevel):
 
         # Template hint
         hint = ctk.CTkFrame(f, fg_color=ACCENT_BG, corner_radius=6)
-        hint.pack(fill="x", pady=(0, 14))
+        hint.pack(fill="x", pady=(0, 16))
         ctk.CTkLabel(
             hint,
             text="Required columns:  full_name  |  admission_number  |  gender (optional)",
@@ -518,7 +518,7 @@ class ImportDialog(ctk.CTkToplevel):
                           fg_color=SURFACE, button_color=BORDER,
                           text_color=TEXT,
                           dropdown_fg_color=SURFACE,
-                          ).pack(anchor="w", pady=(2, 12))
+                          ).pack(anchor="w", pady=(4, 14))
 
         # File picker
         file_row = ctk.CTkFrame(f, fg_color="transparent")

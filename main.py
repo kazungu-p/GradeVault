@@ -5,6 +5,7 @@ from pages.dashboard import DashboardPage
 from pages.students import StudentsPage
 from pages.users import UsersPage
 from pages.classes import ClassesPage
+from pages.settings import SettingsPage
 from pages.setup_wizard import SetupWizard
 from routes.auth import logout
 from routes.settings import is_setup_complete, get_setting, get_user_permissions
@@ -23,6 +24,7 @@ NAV_PERMISSION = {
     "grading":   "manage_exams",
     "reports":   "generate_reports",
     "analytics": "view_all_classes",
+    "settings":  None,  # admin only via nav visibility
 }
 
 NAV_ITEMS = [
@@ -30,6 +32,7 @@ NAV_ITEMS = [
     ("students",  "Students",    "👥"),
     ("users",     "Users",       "👤"),
     ("classes",   "Classes",     "🏫"),
+    ("settings",  "Settings",    "⚙"),
     ("marks",     "Marks entry", "✏"),
     ("grading",   "Grading",     "★"),
     ("reports",   "Reports",     "▦"),
@@ -120,7 +123,7 @@ class App(ctk.CTk):
         nav_area.pack(fill="both", expand=True, padx=8, pady=8)
 
         # Split visible nav into overview and academics
-        overview_keys = {"dashboard", "students", "users", "classes"}
+        overview_keys = {"dashboard", "students", "users", "classes", "settings"}
         overview = [n for n in self._visible_nav if n[0] in overview_keys]
         academics = [n for n in self._visible_nav if n[0] not in overview_keys]
 
@@ -229,6 +232,8 @@ class App(ctk.CTk):
             UsersPage(self._content_frame)
         elif key == "classes":
             ClassesPage(self._content_frame)
+        elif key == "settings":
+            SettingsPage(self._content_frame)
         else:
             ph = ctk.CTkFrame(self._content_frame, fg_color=BG)
             ph.pack(fill="both", expand=True, padx=24, pady=24)

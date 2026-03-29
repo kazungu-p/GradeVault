@@ -21,7 +21,7 @@ class UsersPage(ctk.CTkFrame):
         self.pack(fill="both", expand=True, padx=20, pady=20)
 
         header = ctk.CTkFrame(self, fg_color="transparent")
-        header.pack(fill="x", pady=(0, 14))
+        header.pack(fill="x", pady=(0, 16))
         heading(header, "Users & Teachers").pack(side="left")
         primary_btn(header, "+ Add user",
                     command=self._open_add_form,
@@ -188,7 +188,7 @@ class UserForm(ctk.CTkToplevel):
     def __init__(self, parent, title, on_save, user=None):
         super().__init__(parent)
         self.title(title)
-        self.geometry("480x620")
+        self.geometry("520x660")
         self.resizable(False, False)
         self.grab_set()
         self._on_save = on_save
@@ -202,27 +202,27 @@ class UserForm(ctk.CTkToplevel):
         outer = ctk.CTkScrollableFrame(self, fg_color=BG, corner_radius=0)
         outer.pack(fill="both", expand=True)
         f = ctk.CTkFrame(outer, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=28, pady=28)
+        f.pack(fill="both", expand=True, padx=36, pady=32)
 
-        heading(f, self.title()).pack(anchor="w", pady=(0, 14))
+        heading(f, self.title()).pack(anchor="w", pady=(0, 16))
 
         # ── Basic info ───────────────────────────────────────
         muted(f, "Full name *").pack(anchor="w")
         self._name = ctk.CTkEntry(f, width=420,
                                    fg_color=SURFACE, border_color=BORDER)
-        self._name.pack(anchor="w", pady=(2, 10))
+        self._name.pack(anchor="w", pady=(4, 14))
 
         muted(f, "Username *").pack(anchor="w")
         self._username = ctk.CTkEntry(f, width=420,
                                        fg_color=SURFACE, border_color=BORDER)
-        self._username.pack(anchor="w", pady=(2, 10))
+        self._username.pack(anchor="w", pady=(4, 14))
         if self._user:
             self._username.configure(state="disabled")
 
         muted(f, "Role *").pack(anchor="w")
         self._role_var = ctk.StringVar(value="teacher")
         role_row = ctk.CTkFrame(f, fg_color="transparent")
-        role_row.pack(anchor="w", pady=(2, 10))
+        role_row.pack(anchor="w", pady=(4, 14))
         for role in ["teacher", "admin"]:
             ctk.CTkRadioButton(
                 role_row, text=role.title(),
@@ -238,7 +238,7 @@ class UserForm(ctk.CTkToplevel):
         self._password = ctk.CTkEntry(f, width=420,
                                        fg_color=SURFACE,
                                        border_color=BORDER, show="•")
-        self._password.pack(anchor="w", pady=(2, 14))
+        self._password.pack(anchor="w", pady=(4, 14))
 
         # ── Permissions (teachers only) ──────────────────────
         self._perms_card = ctk.CTkFrame(
@@ -328,7 +328,7 @@ class AssignmentsDialog(ctk.CTkToplevel):
     def __init__(self, parent, user):
         super().__init__(parent)
         self.title(f"Assignments — {user['full_name']}")
-        self.geometry("520x520")
+        self.geometry("560x560")
         self.resizable(False, False)
         self.grab_set()
         self._user = user
@@ -339,7 +339,7 @@ class AssignmentsDialog(ctk.CTkToplevel):
 
     def _build(self):
         self._f = ctk.CTkFrame(self, fg_color=BG)
-        self._f.pack(fill="both", expand=True, padx=28, pady=28)
+        self._f.pack(fill="both", expand=True, padx=36, pady=32)
 
         heading(self._f,
                 f"Assignments — {self._user['full_name']}",
@@ -351,7 +351,7 @@ class AssignmentsDialog(ctk.CTkToplevel):
         self._list_frame = ctk.CTkScrollableFrame(
             self._f, fg_color=SURFACE, corner_radius=8,
             border_color=BORDER, border_width=1, height=200)
-        self._list_frame.pack(fill="x", pady=(0, 14))
+        self._list_frame.pack(fill="x", pady=(0, 16))
 
         divider(self._f).pack(fill="x", pady=(0, 12))
         muted(self._f, "Add new assignment").pack(anchor="w", pady=(0, 6))

@@ -191,7 +191,7 @@ class TermDialog(ctk.CTkToplevel):
     def __init__(self, parent, on_change):
         super().__init__(parent)
         self.title("Manage terms")
-        self.geometry("500x460")
+        self.geometry("540x500")
         self.resizable(False, False)
         self.grab_set()
         self._on_change = on_change
@@ -199,7 +199,7 @@ class TermDialog(ctk.CTkToplevel):
 
     def _build(self):
         f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=28, pady=28)
+        f.pack(fill="both", expand=True, padx=36, pady=32)
 
         heading(f, "Set current term", size=16).pack(anchor="w", pady=(0, 4))
         muted(f, "Select the active term or create a new one.").pack(anchor="w", pady=(0, 14))
