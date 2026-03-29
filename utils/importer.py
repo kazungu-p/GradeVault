@@ -1,56 +1,68 @@
 import csv
-import io
 from pathlib import Path
 
 
 def read_students_from_file(filepath: str) -> tuple[list[dict], str]:
     """
     Read student rows from a CSV or Excel file.
-    Returns (rows, error_message).
-    Rows are dicts with keys: full_name, admission_number, gender (optional).
+    Returns (rows, warning_message).
 
-    Expected columns (any order, case-insensitive):
-        full_name / name / student name
-        admission_number / admission no / adm no / adm_no
-        gender (optional)
+    Supported column names (case-insensitive, flexible):
+        Name:             full_name, name, student name, fullname
+        Admission number: admission_number, admission_no, adm_no, admno, admission
+        Gender:           gender, sex
+        Class:            class, grade, form  (informational only — ignored during import)
+        Stream:           stream              (informational only — ignored during import)
+        Empty columns:    silently skipped
     """
     path = Path(filepath)
     ext  = path.suffix.lower()
 
     try:
         if ext == ".csv":
-            rows = _read_csv(filepath)
+            raw_rows = _read_csv(filepath)
         elif ext in (".xlsx", ".xls"):
-            rows = _read_excel(filepath)
+            raw_rows = _read_excel(filepath)
         else:
-            return [], f"Unsupported file type: {ext}. Use .csv or .xlsx"
+            return [], f"Unsupported file type '{ext}'. Use .csv or .xlsx"
     except Exception as e:
         return [], f"Could not read file: {e}"
 
-    if not rows:
+    if not raw_rows:
         return [], "File is empty or has no data rows."
 
-    # Normalise column names
     NAME_ALIASES = {"full_name", "name", "student name", "student_name",
-                    "fullname"}
-    ADM_ALIASES  = {"admission_number", "admission_no", "adm_no",
-                    "adm no", "admno", "admission"}
+                    "fullname", "names", "full name"}
+    ADM_ALIASES  = {"admission_number", "admission_no", "adm_no", "admno",
+                    "admission", "adm", "adm. no", "adm. number",
+                    "admission number", "reg no", "reg_no", "regno",
+                    "adm no", "adm number"}
     GEN_ALIASES  = {"gender", "sex"}
 
     normalised = []
-    errors = []
-    for i, row in enumerate(rows, start=2):  # row 1 = header
-        lower = {k.strip().lower(): str(v).strip() for k, v in row.items()}
+    warnings   = []
+
+    for i, row in enumerate(raw_rows, start=2):
+        # Normalise keys: strip whitespace, lowercase, skip empty keys
+        lower = {}
+        for k, v in row.items():
+            key = str(k).strip().lower() if k else ""
+            if key:  # skip empty column headers
+                lower[key] = str(v).strip() if v is not None else ""
 
         name = next((lower[k] for k in lower if k in NAME_ALIASES), "")
         adm  = next((lower[k] for k in lower if k in ADM_ALIASES),  "")
         gen  = next((lower[k] for k in lower if k in GEN_ALIASES),  "")
 
+        # Skip completely empty rows
+        if not any(lower.values()):
+            continue
+
         if not name:
-            errors.append(f"Row {i}: missing name — skipped.")
+            warnings.append(f"Row {i}: missing name — skipped.")
             continue
         if not adm:
-            errors.append(f"Row {i}: missing admission number — skipped.")
+            warnings.append(f"Row {i}: missing admission number — skipped.")
             continue
 
         gen_clean = gen.upper()[:1] if gen.upper()[:1] in ("M", "F") else None
@@ -61,9 +73,8 @@ def read_students_from_file(filepath: str) -> tuple[list[dict], str]:
             "gender":           gen_clean,
         })
 
-    if errors:
-        return normalised, "\n".join(errors)
-    return normalised, ""
+    warn_str = "\n".join(warnings) if warnings else ""
+    return normalised, warn_str
 
 
 def _read_csv(filepath: str) -> list[dict]:
@@ -93,7 +104,6 @@ def _read_excel(filepath: str) -> list[dict]:
 
 
 def sample_csv_template() -> str:
-    """Return a sample CSV string the user can download as a template."""
     return (
         "full_name,admission_number,gender\n"
         "Jane Mwangi,2026001,F\n"

@@ -7,6 +7,7 @@ from pages.users import UsersPage
 from pages.classes import ClassesPage
 from pages.settings import SettingsPage
 from pages.setup_wizard import SetupWizard
+from pages.splash import SplashScreen
 from routes.auth import logout
 from routes.settings import is_setup_complete, get_setting, get_user_permissions
 from routes.terms import get_current_term
@@ -60,17 +61,31 @@ class App(ctk.CTk):
         self.geometry("1280x800")
         self.minsize(960, 600)
         self.configure(fg_color=BG)
+
+        # App icon
+        try:
+            from pathlib import Path
+            icon_path = Path(__file__).parent / "assets" / "icon.png"
+            if icon_path.exists():
+                from PIL import Image as PILImage
+                from customtkinter import CTkImage
+                pil_icon = PILImage.open(icon_path)
+                icon_img = CTkImage(pil_icon, size=(32, 32))
+                self.iconphoto(True, icon_img._light_image)
+        except Exception:
+            pass
+
         run_migrations()
         if not is_setup_complete():
             self._run_setup()
         else:
-            self._show_login()
+            SplashScreen(self, on_ready=self._show_login, duration=2.0)
 
     def _run_setup(self):
         self.withdraw()
         def on_complete():
             self.deiconify()
-            self._show_login()
+            SplashScreen(self, on_ready=self._show_login, duration=2.5)
         SetupWizard(self, on_complete=on_complete)
 
     def _show_login(self):
@@ -94,7 +109,7 @@ class App(ctk.CTk):
         self._navigate("dashboard")
 
     def _build_sidebar(self):
-        sb = ctk.CTkFrame(self._shell, width=210,
+        sb = ctk.CTkFrame(self._shell, width=230,
                           fg_color=SURFACE, corner_radius=0,
                           border_color=BORDER, border_width=1)
         sb.pack(side="left", fill="y")
@@ -111,16 +126,16 @@ class App(ctk.CTk):
                      font=("", 13, "bold")).place(
             relx=0.5, rely=0.5, anchor="center")
         txt = ctk.CTkFrame(logo, fg_color="transparent")
-        txt.pack(side="left", padx=8)
-        label(txt, "GradeVault", size=14, weight="bold").pack(anchor="w")
-        ctk.CTkLabel(txt, text=school_name, font=("", 10),
-                     text_color=TEXT_MUTED, wraplength=150,
+        txt.pack(side="left", padx=(8, 0), fill="x", expand=True)
+        label(txt, "GradeVault", size=13, weight="bold").pack(anchor="w")
+        ctk.CTkLabel(txt, text=school_name, font=("", 9),
+                     text_color=TEXT_MUTED, wraplength=165,
                      justify="left", anchor="w").pack(anchor="w")
 
         divider(sb).pack(fill="x")
 
         nav_area = ctk.CTkFrame(sb, fg_color="transparent")
-        nav_area.pack(fill="both", expand=True, padx=8, pady=8)
+        nav_area.pack(fill="both", expand=True, padx=6, pady=8)
 
         # Split visible nav into overview and academics
         overview_keys = {"dashboard", "students", "users", "classes", "settings"}
