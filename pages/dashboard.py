@@ -55,11 +55,11 @@ class DashboardPage(ctk.CTkFrame):
             "SELECT COUNT(*) AS n FROM classes") or {}).get("n", 0)
         pending = (query_one(
             "SELECT COUNT(*) AS n FROM assessments a "
-            "WHERE NOT EXISTS (SELECT 1 FROM marks m WHERE m.assessment_id=a.id)"
+            "WHERE NOT EXISTS (SELECT 1 FROM marks_new m WHERE m.assessment_id=a.id)"
         ) or {}).get("n", 0)
 
         school_mean_row = query_one(
-            "SELECT ROUND(AVG(score), 1) AS mean FROM marks"
+            "SELECT ROUND(AVG(percentage), 1) AS mean FROM marks_new"
         ) or {}
         school_mean = school_mean_row.get("mean") or "—"
         mean_sub = "school average" if school_mean != "—" else "no marks yet"
@@ -98,8 +98,8 @@ class DashboardPage(ctk.CTkFrame):
         # Load real subject averages from marks
         subject_avgs = query(
             """
-            SELECT s.name, AVG(m.score) AS avg_score
-            FROM marks m
+            SELECT s.name, AVG(m.percentage) AS avg_score
+            FROM marks_new m
             JOIN subjects s ON m.subject_id = s.id
             GROUP BY s.id, s.name
             ORDER BY avg_score ASC

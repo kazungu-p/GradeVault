@@ -911,8 +911,7 @@ class ImportDialog(ctk.CTkToplevel):
             msg += f"  {skipped} skipped (duplicate admission numbers)."
         self._status.configure(text=msg, text_color=SUCCESS)
         self._import_btn.configure(state="disabled")
-        self.after(1800, self.destroy)
-        self.after(1800, self._on_done)
+        self.after(1800, lambda: [self.destroy(), self._on_done()])
 
 
 # ── Confirm dialog ────────────────────────────────────────────

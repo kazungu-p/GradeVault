@@ -78,7 +78,8 @@ CREATE TABLE IF NOT EXISTS terms (
     UNIQUE(year, term)
 );
 
-CREATE TABLE IF NOT EXISTS assessments (
+-- assessments replaced below
+CREATE TABLE IF NOT EXISTS _assessments_old (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     term_id    INTEGER NOT NULL REFERENCES terms(id),
     class_id   INTEGER NOT NULL REFERENCES classes(id),
@@ -88,12 +89,49 @@ CREATE TABLE IF NOT EXISTS assessments (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS marks (
+-- marks replaced below
+CREATE TABLE IF NOT EXISTS _marks_old (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     student_id    INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
     assessment_id INTEGER NOT NULL REFERENCES assessments(id) ON DELETE CASCADE,
     subject_id    INTEGER NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
     score         REAL NOT NULL CHECK(score >= 0 AND score <= 100),
+    entered_by    INTEGER REFERENCES users(id),
+    created_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(student_id, assessment_id, subject_id)
+);
+
+
+CREATE TABLE IF NOT EXISTS subject_enrollments (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    subject_id INTEGER NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+    class_id   INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+    UNIQUE(student_id, subject_id, class_id)
+);
+
+CREATE TABLE IF NOT EXISTS assessments (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    term_id    INTEGER NOT NULL REFERENCES terms(id),
+    name       TEXT NOT NULL,
+    type       TEXT NOT NULL CHECK(type IN ('CAT', 'Exam', 'Assignment')),
+    out_of     INTEGER NOT NULL DEFAULT 100,
+    created_by INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+DROP TABLE IF EXISTS marks_new;
+CREATE TABLE IF NOT EXISTS marks_new (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id    INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    assessment_id INTEGER NOT NULL REFERENCES assessments(id) ON DELETE CASCADE,
+    subject_id    INTEGER NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+    class_id      INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+    raw_score     REAL,
+    out_of        REAL NOT NULL DEFAULT 100,
+    percentage    REAL,
+    grade         TEXT,
     entered_by    INTEGER REFERENCES users(id),
     created_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,

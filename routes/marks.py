@@ -6,7 +6,7 @@ def get_marks(assessment_id: int) -> list:
     return [dict(r) for r in query(
         """
         SELECT m.*, s.full_name, s.admission_number
-        FROM marks m
+        FROM marks_new m
         JOIN students s ON m.student_id = s.id
         WHERE m.assessment_id = ?
         ORDER BY s.full_name
@@ -25,7 +25,7 @@ def upsert_mark(student_id: int, assessment_id: int,
 
     execute(
         """
-        INSERT INTO marks (student_id, assessment_id, subject_id, score, entered_by)
+        INSERT INTO marks_new (student_id, assessment_id, subject_id, score, entered_by)
         VALUES (?,?,?,?,?)
         ON CONFLICT(student_id, assessment_id, subject_id)
         DO UPDATE SET score=excluded.score,
@@ -50,7 +50,7 @@ def bulk_upsert_marks(marks: list[dict]) -> tuple[bool, str]:
 
     execute_many(
         """
-        INSERT INTO marks (student_id, assessment_id, subject_id, score, entered_by)
+        INSERT INTO marks_new (student_id, assessment_id, subject_id, score, entered_by)
         VALUES (?,?,?,?,?)
         ON CONFLICT(student_id, assessment_id, subject_id)
         DO UPDATE SET score=excluded.score,
