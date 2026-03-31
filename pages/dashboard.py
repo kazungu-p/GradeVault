@@ -41,8 +41,12 @@ class DashboardPage(ctk.CTkFrame):
             text_color=ACCENT, font=("", 12, "bold"))
         self._term_label_widget.pack(padx=12, pady=6)
 
-        ghost_btn(term_frame, "Set term", command=self._open_term_dialog,
-                  width=90).pack(side="left")
+        user = Session.get()
+        can_set_term = (user["role"] == "admin" or
+                        "manage_term" in user.get("perms", []))
+        if can_set_term:
+            ghost_btn(term_frame, "Set term", command=self._open_term_dialog,
+                      width=90).pack(side="left")
 
         # ── Stat cards ────────────────────────────────────────
         stats_row = ctk.CTkFrame(self, fg_color="transparent")
@@ -53,10 +57,41 @@ class DashboardPage(ctk.CTkFrame):
             "SELECT COUNT(*) AS n FROM students WHERE status='active'") or {}).get("n", 0)
         total_classes = (query_one(
             "SELECT COUNT(*) AS n FROM classes") or {}).get("n", 0)
-        pending = (query_one(
-            "SELECT COUNT(*) AS n FROM assessments a "
-            "WHERE NOT EXISTS (SELECT 1 FROM marks_new m WHERE m.assessment_id=a.id)"
-        ) or {}).get("n", 0)
+        user = Session.get()
+        current_term = get_current_term()
+        term_id = current_term["id"] if current_term else None
+
+        if user["role"] == "admin" or set(user.get("perms", [])) >= {
+                "enter_marks", "manage_students", "manage_exams",
+                "generate_reports", "view_all_classes"}:
+            # Admin / full-access user — show overall pending across all subjects
+            pending_sql = (
+                "SELECT COUNT(DISTINCT ta.subject_id || '-' || ta.class_id) AS n "
+                "FROM teacher_assignments ta "
+                "JOIN assessments a ON (? IS NULL OR a.term_id=?) "
+                "WHERE NOT EXISTS ("
+                "  SELECT 1 FROM marks_new m "
+                "  WHERE m.assessment_id=a.id "
+                "  AND m.subject_id=ta.subject_id "
+                "  AND m.class_id=ta.class_id"
+                ")"
+            )
+            pending = (query_one(pending_sql, (term_id, term_id)) or {}).get("n", 0)
+        else:
+            # Teacher — only their assigned subjects
+            pending = (query_one(
+                "SELECT COUNT(DISTINCT ta.subject_id || '-' || ta.class_id) AS n "
+                "FROM teacher_assignments ta "
+                "JOIN assessments a ON (? IS NULL OR a.term_id=?) "
+                "WHERE ta.user_id=? "
+                "AND NOT EXISTS ("
+                "  SELECT 1 FROM marks_new m "
+                "  WHERE m.assessment_id=a.id "
+                "  AND m.subject_id=ta.subject_id "
+                "  AND m.class_id=ta.class_id"
+                ")",
+                (term_id, term_id, user["id"])
+            ) or {}).get("n", 0)
 
         school_mean_row = query_one(
             "SELECT ROUND(AVG(percentage), 1) AS mean FROM marks_new"

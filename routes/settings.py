@@ -36,6 +36,7 @@ ALL_PERMISSIONS = [
     ("view_all_classes", "View all classes",     "View students and marks across all classes"),
     ("manage_users",     "Manage users",         "Add and edit teacher accounts"),
     ("manage_subjects",  "Manage subjects",      "Add, edit and delete subjects and classes"),
+    ("manage_term",      "Manage term",          "Set and switch the current academic term"),
 ]
 
 

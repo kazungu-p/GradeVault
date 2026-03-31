@@ -74,7 +74,9 @@ class MarksPage(ctk.CTkFrame):
 
         # Left — existing assessments
         left = card(body)
-        left.grid(row=0, column=0, padx=(0, 8), sticky="nsew", pady=(0, 0))
+        col_span = 1 if can_create else 2
+        left.grid(row=0, column=0, padx=(0, 8) if can_create else 0,
+                  sticky="nsew", pady=(0, 0), columnspan=col_span)
 
         lf = ctk.CTkFrame(left, fg_color="transparent")
         lf.pack(fill="both", expand=True, padx=16, pady=14)
@@ -82,10 +84,14 @@ class MarksPage(ctk.CTkFrame):
         label(lf, "Select assessment", size=13,
               weight="bold").pack(anchor="w", pady=(0, 10))
 
-        assessments = get_assessments()
+        from routes.terms import get_current_term
+        current_term = get_current_term()
+        term_id = current_term["id"] if current_term else None
+        assessments = get_assessments(term_id=term_id)
 
         if not assessments:
-            muted(lf, "No assessments yet.\nCreate one →").pack(
+            term_name = f"Term {current_term['term']}, {current_term['year']}" if current_term else "current term"
+            muted(lf, f"No assessments for {term_name}.\n{'Create one →' if can_create else 'Ask your admin to create one.'}").pack(
                 anchor="w", pady=20)
         else:
             scroll = ctk.CTkScrollableFrame(
@@ -470,20 +476,38 @@ class MarksPage(ctk.CTkFrame):
                                     width=70, anchor="w")
             pct_lbl.pack(side="left", padx=(8, 0))
 
-            # Auto-save on focus out
+            # Auto-save on focus out / Tab
             def _auto_save(event, sid=s["id"],
                            sv=score_var, pl=pct_lbl, pv=pct_var):
                 self._save_one(sid, sv, pv, pl)
 
+            # Enter — save and move to next row
+            def _enter_next(event, sid=s["id"],
+                            sv=score_var, pl=pct_lbl, pv=pct_var):
+                self._save_one(sid, sv, pv, pl)
+                self._focus_next(sid)
+                return "break"
+
             entry.bind("<FocusOut>", _auto_save)
-            entry.bind("<Return>",   _auto_save)
             entry.bind("<Tab>",      _auto_save)
+            entry.bind("<Return>",   _enter_next)
 
         # Keyboard navigation — focus first empty entry
         for sid, (entry, _) in self._entries.items():
             if not entry.get():
                 entry.focus()
                 break
+
+    def _focus_next(self, current_student_id):
+        """Move focus to the next student's entry."""
+        ids = [s["id"] for s in self._enrolled]
+        try:
+            idx = ids.index(current_student_id)
+            next_id = ids[idx + 1] if idx + 1 < len(ids) else None
+        except ValueError:
+            next_id = None
+        if next_id and next_id in self._entries:
+            self._entries[next_id][0].focus()
 
     def _on_outof_change(self, event=None):
         try:
@@ -521,6 +545,12 @@ class MarksPage(ctk.CTkFrame):
         else:
             score_var.set("")
 
+    def _clear_save_status(self):
+        try:
+            self._save_status.configure(text="")
+        except Exception:
+            pass  # widget already destroyed
+
     def _save_all(self):
         saved = 0
         for sid, (entry, sv) in self._entries.items():
@@ -539,7 +569,7 @@ class MarksPage(ctk.CTkFrame):
                 saved += 1
         self._save_status.configure(
             text=f"✓ {saved} mark(s) saved")
-        self.after(3000, lambda: self._save_status.configure(text=""))
+        self.after(3000, self._clear_save_status)
         # Refresh cache
         self._marks_cache = get_marks(
             self._assessment["id"], self._subject["id"], self._class["id"])
