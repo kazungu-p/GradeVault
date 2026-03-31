@@ -93,6 +93,32 @@ class DashboardPage(ctk.CTkFrame):
                 (term_id, term_id, user["id"])
             ) or {}).get("n", 0)
 
+        # Get subject-level detail for pending dialog
+        pending_rows = query(
+            """
+            SELECT
+                s.name  AS subject_name,
+                a.name  AS assessment_name,
+                a.type  AS assessment_type,
+                c.name  AS class_name,
+                c.stream,
+                t.term,
+                t.year
+            FROM teacher_assignments ta
+            JOIN subjects    s ON ta.subject_id = s.id
+            JOIN classes     c ON ta.class_id   = c.id
+            JOIN assessments a ON a.term_id = t.id
+            JOIN terms       t ON a.term_id = t.id
+            WHERE NOT EXISTS (
+                SELECT 1 FROM marks_new m
+                WHERE m.assessment_id = a.id
+                AND   m.subject_id    = ta.subject_id
+                AND   m.class_id      = ta.class_id
+            )
+            ORDER BY s.name, c.name, c.stream, a.name
+            """
+        )
+
         school_mean_row = query_one(
             "SELECT ROUND(AVG(percentage), 1) AS mean FROM marks_new"
         ) or {}
@@ -100,21 +126,33 @@ class DashboardPage(ctk.CTkFrame):
         mean_sub = "school average" if school_mean != "—" else "no marks yet"
 
         stats = [
-            ("Total students", str(total_students), "active enrolment"),
-            ("School mean",    str(school_mean),     mean_sub),
-            ("Classes",        str(total_classes),   "across all forms"),
-            ("Marks pending",  str(pending),         "assessments without marks"),
+            ("Total students", str(total_students), "active enrolment",    None),
+            ("School mean",    str(school_mean),     mean_sub,              None),
+            ("Classes",        str(total_classes),   "across all forms",    None),
+            ("Marks pending",  str(pending),
+             "click to see details" if pending > 0 else "all marks entered",
+             pending_rows if pending > 0 else None),
         ]
-        for col, (lbl, val, sub) in enumerate(stats):
-            c = ctk.CTkFrame(stats_row, fg_color="#F3F4F6", corner_radius=8)
+        for col, (lbl, val, sub, detail) in enumerate(stats):
+            c = ctk.CTkFrame(stats_row, fg_color="#F3F4F6", corner_radius=8,
+                             cursor="hand2" if detail else "")
             c.grid(row=0, column=col, padx=(0, 10) if col < 3 else 0, sticky="ew")
+            if detail:
+                c.bind("<Button-1>", lambda e, d=detail: PendingDialog(self, d))
             inner = ctk.CTkFrame(c, fg_color="transparent")
             inner.pack(padx=14, pady=12, fill="both")
+            if detail:
+                inner.bind("<Button-1>", lambda e, d=detail: PendingDialog(self, d))
             muted(inner, lbl, size=11).pack(anchor="w")
-            label(inner, val, size=22, weight="bold").pack(anchor="w", pady=(2, 0))
+            val_lbl = label(inner, val, size=22, weight="bold")
+            val_lbl.pack(anchor="w", pady=(2, 0))
+            if detail:
+                val_lbl.bind("<Button-1>", lambda e, d=detail: PendingDialog(self, d))
             color = DANGER if (lbl == "Marks pending" and int(val or 0) > 0) else TEXT_MUTED
-            ctk.CTkLabel(inner, text=sub, font=("", 11),
-                         text_color=color).pack(anchor="w")
+            sub_lbl = ctk.CTkLabel(inner, text=sub, font=("", 11), text_color=color)
+            sub_lbl.pack(anchor="w")
+            if detail:
+                sub_lbl.bind("<Button-1>", lambda e, d=detail: PendingDialog(self, d))
 
         # ── Bottom row ────────────────────────────────────────
         bottom = ctk.CTkFrame(self, fg_color="transparent")
@@ -350,3 +388,59 @@ class TermDialog(ctk.CTkToplevel):
             self._render_terms()
         else:
             self._msg.configure(text_color=DANGER, text=msg)
+
+
+# ── Pending marks detail dialog ───────────────────────────────
+class PendingDialog(ctk.CTkToplevel):
+    def __init__(self, parent, pending_rows):
+        super().__init__(parent)
+        self.title("Assessments with no marks")
+        self.geometry("520x460")
+        self.resizable(False, False)
+        self.grab_set()
+        self._build(pending_rows)
+
+    def _build(self, rows):
+        f = ctk.CTkFrame(self, fg_color=BG)
+        f.pack(fill="both", expand=True, padx=28, pady=28)
+
+        heading(f, "Subjects missing marks", size=15).pack(
+            anchor="w", pady=(0, 4))
+        muted(f, f"{len(rows)} subject/class combination(s) have no marks entered."
+              ).pack(anchor="w", pady=(0, 14))
+
+        scroll = ctk.CTkScrollableFrame(
+            f, fg_color=SURFACE,
+            border_color=BORDER, border_width=1,
+            corner_radius=8)
+        scroll.pack(fill="both", expand=True, pady=(0, 14))
+
+        for r in rows:
+            stream = r.get("stream") or ""
+            class_label = f"{r['class_name']} {stream}".strip()
+
+            row_f = ctk.CTkFrame(scroll, fg_color="transparent")
+            row_f.pack(fill="x", pady=6, padx=10)
+
+            dot = ctk.CTkFrame(row_f, fg_color=DANGER,
+                               width=8, height=8, corner_radius=4)
+            dot.pack(side="left", padx=(0, 10))
+            dot.pack_propagate(False)
+
+            col = ctk.CTkFrame(row_f, fg_color="transparent")
+            col.pack(side="left", fill="x", expand=True)
+
+            ctk.CTkLabel(col,
+                         text=f"{r['subject_name']}  —  {class_label}",
+                         font=("", 13, "bold"), text_color=TEXT,
+                         anchor="w").pack(anchor="w")
+            ctk.CTkLabel(col,
+                         text=f"{r['assessment_name']}  ·  {r['assessment_type']}"
+                              f"  ·  Term {r['term']}, {r['year']}",
+                         font=("", 11), text_color=TEXT_MUTED,
+                         anchor="w").pack(anchor="w")
+
+            from utils.theme import divider
+            divider(scroll).pack(fill="x", pady=(4, 0))
+
+        primary_btn(f, "Close", command=self.destroy, width=100).pack(anchor="e")
