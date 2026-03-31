@@ -67,6 +67,11 @@ class MarksPage(ctk.CTkFrame):
         body.columnconfigure(0, weight=1)
         body.columnconfigure(1, weight=1)
 
+        # Determine permissions before building UI
+        user = Session.get()
+        can_create = (user["role"] == "admin" or
+                      "manage_exams" in user.get("perms", []))
+
         # Left — existing assessments
         left = card(body)
         left.grid(row=0, column=0, padx=(0, 8), sticky="nsew", pady=(0, 0))
@@ -95,7 +100,7 @@ class MarksPage(ctk.CTkFrame):
 
                 info = ctk.CTkFrame(row, fg_color="transparent")
                 info.pack(side="left", fill="x", expand=True,
-                          padx=12, pady=10)
+                          padx=12, pady=14)
 
                 ctk.CTkLabel(info, text=a["name"],
                              font=("", 13, "bold"),
@@ -108,56 +113,61 @@ class MarksPage(ctk.CTkFrame):
                     anchor="w").pack(anchor="w")
 
                 btn_col = ctk.CTkFrame(row, fg_color="transparent")
-                btn_col.pack(side="right", padx=8)
+                btn_col.pack(side="right", padx=12, pady=10)
 
                 primary_btn(btn_col, "Select →",
                             command=lambda ax=a: self._on_assessment(ax),
-                            width=90).pack(pady=8)
+                            width=100).pack(pady=(0, 6))
+                if can_create:
+                    ghost_btn(btn_col, "Delete",
+                              command=lambda ax=a: self._delete_assessment(ax),
+                              width=100).pack()
 
         # Right — create new (only for users with manage_exams permission)
-        user = Session.get()
-        can_create = (user["role"] == "admin" or
-                      "manage_exams" in user.get("perms", []))
-        right = card(body)
         if can_create:
+            # Two-column layout
+            body.columnconfigure(0, weight=2)
+            body.columnconfigure(1, weight=1)
+            right = card(body)
             right.grid(row=0, column=1, padx=(8, 0), sticky="nsew")
+
+            rf = ctk.CTkFrame(right, fg_color="transparent")
+            rf.pack(fill="both", expand=True, padx=16, pady=14)
+
+            label(rf, "Create new assessment", size=13,
+                  weight="bold").pack(anchor="w", pady=(0, 12))
+
+            muted(rf, "Name *").pack(anchor="w")
+            self._aname = ctk.CTkEntry(rf, width=280,
+                                        fg_color=SURFACE, border_color=BORDER,
+                                        placeholder_text="e.g. Midterm 1 Exam")
+            self._aname.pack(anchor="w", pady=(4, 12))
+
+            muted(rf, "Type *").pack(anchor="w")
+            self._atype = ctk.StringVar(value="Exam")
+            ctk.CTkOptionMenu(rf, variable=self._atype,
+                              values=["Exam", "CAT", "Assignment"],
+                              width=280, fg_color=SURFACE,
+                              button_color=BORDER, text_color=TEXT,
+                              dropdown_fg_color=SURFACE,
+                              ).pack(anchor="w", pady=(4, 12))
+
+            muted(rf, "Default marks out of").pack(anchor="w")
+            self._aoutof = ctk.CTkEntry(rf, width=280,
+                                         fg_color=SURFACE, border_color=BORDER)
+            self._aoutof.insert(0, "100")
+            self._aoutof.pack(anchor="w", pady=(4, 14))
+
+            self._aerr = ctk.CTkLabel(rf, text="",
+                                       text_color=DANGER, font=("", 12))
+            self._aerr.pack(anchor="w")
+
+            primary_btn(rf, "Create assessment",
+                        command=self._create_assessment, width=200).pack(
+                anchor="w", pady=(8, 0))
         else:
-            right.grid_forget()
-
-        rf = ctk.CTkFrame(right, fg_color="transparent")
-        rf.pack(fill="both", expand=True, padx=16, pady=14)
-
-        label(rf, "Create new assessment", size=13,
-              weight="bold").pack(anchor="w", pady=(0, 12))
-
-        muted(rf, "Name *").pack(anchor="w")
-        self._aname = ctk.CTkEntry(rf, width=280,
-                                    fg_color=SURFACE, border_color=BORDER,
-                                    placeholder_text="e.g. Midterm 1 Exam")
-        self._aname.pack(anchor="w", pady=(4, 12))
-
-        muted(rf, "Type *").pack(anchor="w")
-        self._atype = ctk.StringVar(value="Exam")
-        ctk.CTkOptionMenu(rf, variable=self._atype,
-                          values=["Exam", "CAT", "Assignment"],
-                          width=280, fg_color=SURFACE,
-                          button_color=BORDER, text_color=TEXT,
-                          dropdown_fg_color=SURFACE,
-                          ).pack(anchor="w", pady=(4, 12))
-
-        muted(rf, "Default marks out of").pack(anchor="w")
-        self._aoutof = ctk.CTkEntry(rf, width=280,
-                                     fg_color=SURFACE, border_color=BORDER)
-        self._aoutof.insert(0, "100")
-        self._aoutof.pack(anchor="w", pady=(4, 14))
-
-        self._aerr = ctk.CTkLabel(rf, text="",
-                                   text_color=DANGER, font=("", 12))
-        self._aerr.pack(anchor="w")
-
-        primary_btn(rf, "Create assessment",
-                    command=self._create_assessment, width=200).pack(
-            anchor="w", pady=(8, 0))
+            # Full width — assessment list only
+            body.columnconfigure(0, weight=1)
 
     def _create_assessment(self):
         self._aerr.configure(text="")
@@ -173,6 +183,20 @@ class MarksPage(ctk.CTkFrame):
             self._show_step1()
         else:
             self._aerr.configure(text=msg)
+
+    def _delete_assessment(self, assessment):
+        from tkinter import messagebox
+        name = assessment["name"]
+        if messagebox.askyesno(
+            "Delete assessment",
+            f"Delete '{name}'?\nThis cannot be undone if marks exist.",
+        ):
+            ok, msg = delete_assessment(assessment["id"])
+            if ok:
+                self._show_step1()
+            else:
+                from tkinter import messagebox as mb
+                mb.showerror("Cannot delete", msg)
 
     def _on_assessment(self, assessment):
         self._assessment = assessment
@@ -565,7 +589,7 @@ class EnrollmentDialog(ctk.CTkToplevel):
         super().__init__(parent)
         cls_label = f"{cls['name']}{' ' + cls['stream'] if cls.get('stream') else ''}"
         self.title(f"Enrollment — {subject['name']} / {cls_label}")
-        self.geometry("480x520")
+        self.geometry("480x580")
         self.resizable(False, False)
         self.grab_set()
         self._subject = subject

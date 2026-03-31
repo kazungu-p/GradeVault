@@ -113,7 +113,7 @@ def update_subject(subject_id: int, name: str,
 
 def delete_subject(subject_id: int) -> tuple[bool, str]:
     marks = query_one(
-        "SELECT COUNT(*) AS n FROM marks WHERE subject_id=?", (subject_id,)
+        "SELECT COUNT(*) AS n FROM marks_new WHERE subject_id=?", (subject_id,)
     )
     if marks and marks["n"] > 0:
         return False, "Cannot delete — marks exist for this subject."

@@ -191,7 +191,7 @@ class TermDialog(ctk.CTkToplevel):
     def __init__(self, parent, on_change):
         super().__init__(parent)
         self.title("Manage terms")
-        self.geometry("540x500")
+        self.geometry("540x560")
         self.resizable(False, False)
         self.grab_set()
         self._on_change = on_change
@@ -249,8 +249,9 @@ class TermDialog(ctk.CTkToplevel):
 
         for t in terms:
             is_current = bool(t["is_current"])
+            # Term header row
             row = ctk.CTkFrame(self._terms_frame, fg_color="transparent")
-            row.pack(fill="x", pady=2)
+            row.pack(fill="x", pady=(4, 0))
 
             badge_color = ACCENT_BG if is_current else "#F3F4F6"
             badge_text_color = ACCENT if is_current else TEXT_MUTED
@@ -271,6 +272,30 @@ class TermDialog(ctk.CTkToplevel):
                               hover_color=BG, font=("", 11),
                               command=lambda tid=t["id"]: self._set_current(tid)
                               ).pack(side="right")
+
+            # Show assessments for this term
+            from db.connection import query as dbq
+            assessments = dbq(
+                "SELECT name, type, out_of FROM assessments "
+                "WHERE term_id=? ORDER BY created_at",
+                (t["id"],)
+            )
+            if assessments:
+                aframe = ctk.CTkFrame(
+                    self._terms_frame, fg_color="#F9FAFB",
+                    border_color=BORDER, border_width=1, corner_radius=6)
+                aframe.pack(fill="x", pady=(2, 4), padx=(12, 0))
+                for a in assessments:
+                    ctk.CTkLabel(
+                        aframe,
+                        text=f"  •  {a['name']}  —  {a['type']}, out of {a['out_of']}",
+                        font=("", 11), text_color=TEXT_MUTED,
+                        anchor="w").pack(anchor="w", padx=8, pady=2)
+            else:
+                ctk.CTkLabel(self._terms_frame,
+                             text="    No assessments yet",
+                             font=("", 11), text_color="#D1D5DB",
+                             anchor="w").pack(anchor="w", pady=(0, 4))
 
     def _set_current(self, term_id):
         set_current_term(term_id)
