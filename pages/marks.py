@@ -660,10 +660,19 @@ class EnrollmentDialog(ctk.CTkToplevel):
         f.pack(fill="both", expand=True, padx=28, pady=28)
 
         cls_label = f"{self._cls['name']}{' ' + self._cls['stream'] if self._cls.get('stream') else ''}"
-        heading(f, f"Who takes {self._subject['name']}?",
-                size=15).pack(anchor="w", pady=(0, 4))
-        muted(f, f"Class: {cls_label}  —  tick the students enrolled in this subject."
-              ).pack(anchor="w", pady=(0, 12))
+        from db.connection import query_one as qone2
+        cls_info2 = qone2("SELECT is_combined FROM classes WHERE id=?",
+                          (self._cls["id"],)) or {}
+        if cls_info2.get("is_combined"):
+            heading(f, f"Who takes {self._subject['name']}?",
+                    size=15).pack(anchor="w", pady=(0, 4))
+            muted(f, f"Combined class: {cls_label}\nStudents shown are from all streams. Tick those taking this subject."
+                  ).pack(anchor="w", pady=(0, 12))
+        else:
+            heading(f, f"Who takes {self._subject['name']}?",
+                    size=15).pack(anchor="w", pady=(0, 4))
+            muted(f, f"Class: {cls_label}  —  tick the students enrolled in this subject."
+                  ).pack(anchor="w", pady=(0, 12))
 
         # Select all toggle
         ctrl = ctk.CTkFrame(f, fg_color="transparent")
@@ -688,14 +697,31 @@ class EnrollmentDialog(ctk.CTkToplevel):
                          get_enrolled_students(self._subject["id"],
                                                self._cls["id"])}
 
+        # Check if this is a combined class
+        from db.connection import query_one as qone
+        cls_info = qone("SELECT is_combined FROM classes WHERE id=?",
+                        (self._cls["id"],)) or {}
+        is_combined = bool(cls_info.get("is_combined"))
+
         for s in all_students:
             var = ctk.BooleanVar(value=(s["id"] in enrolled_ids))
             self._vars[s["id"]] = var
             row = ctk.CTkFrame(scroll, fg_color="transparent")
             row.pack(fill="x", pady=2)
+
+            # For combined classes, show which stream the student is from
+            if is_combined and s.get("class_name"):
+                stream = s.get("stream") or ""
+                origin = f"{s['class_name']} {stream}".strip()
+                label_text = (f"{s['full_name']}  "
+                              f"({s['admission_number']})"
+                              f"  —  {origin}")
+            else:
+                label_text = f"{s['full_name']}  ({s['admission_number']})"
+
             ctk.CTkCheckBox(
                 row,
-                text=f"{s['full_name']}  ({s['admission_number']})",
+                text=label_text,
                 variable=var,
                 font=("", 12), text_color=TEXT,
                 fg_color=ACCENT, hover_color=ACCENT_DARK,

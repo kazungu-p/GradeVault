@@ -89,12 +89,39 @@ def get_enrolled_students(subject_id: int, class_id: int) -> list:
 
 
 def get_all_class_students(class_id: int) -> list:
-    return query(
-        "SELECT id, full_name, admission_number, gender "
-        "FROM students WHERE class_id=? AND status='active' "
-        "ORDER BY full_name",
-        (class_id,),
-    )
+    """
+    For combined classes: returns all active students from classes
+    with the same base name (e.g. all Form 4 streams).
+    For regular classes: returns students in that class only.
+    """
+    from db.connection import query_one as qone
+    cls = qone("SELECT name, is_combined FROM classes WHERE id=?", (class_id,))
+
+    if cls and cls.get("is_combined"):
+        # Extract base name — e.g. "Form 4 Physics Combined" → "Form 4"
+        # Find all classes whose name starts with the same form/grade level
+        base = cls["name"].split()[0:2]  # e.g. ["Form", "4"] or ["Grade", "10"]
+        base_name = " ".join(base)
+        return query(
+            """
+            SELECT s.id, s.full_name, s.admission_number, s.gender,
+                   c.name AS class_name, c.stream
+            FROM students s
+            JOIN classes c ON s.class_id = c.id
+            WHERE s.status = 'active'
+              AND c.name LIKE ?
+              AND c.is_combined = 0
+            ORDER BY c.name, c.stream, s.full_name
+            """,
+            (f"{base_name}%",),
+        )
+    else:
+        return query(
+            "SELECT id, full_name, admission_number, gender "
+            "FROM students WHERE class_id=? AND status='active' "
+            "ORDER BY full_name",
+            (class_id,),
+        )
 
 
 def set_enrollments(subject_id: int, class_id: int,
