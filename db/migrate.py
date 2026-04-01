@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS terms (
     UNIQUE(year, term)
 );
 
--- assessments replaced below
+-- legacy stub (safe to ignore)
 CREATE TABLE IF NOT EXISTS _assessments_old (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     term_id    INTEGER NOT NULL REFERENCES terms(id),
@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS _assessments_old (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- marks replaced below
+-- legacy stub (safe to ignore)
 CREATE TABLE IF NOT EXISTS _marks_old (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     student_id    INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
@@ -121,7 +121,6 @@ CREATE TABLE IF NOT EXISTS assessments (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-DROP TABLE IF EXISTS marks_new;
 CREATE TABLE IF NOT EXISTS marks_new (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     student_id    INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
