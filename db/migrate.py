@@ -26,11 +26,13 @@ CREATE TABLE IF NOT EXISTS user_permissions (
 );
 
 CREATE TABLE IF NOT EXISTS classes (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    name       TEXT NOT NULL,
-    stream     TEXT,
-    sort_order INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL,
+    stream      TEXT,
+    is_combined INTEGER NOT NULL DEFAULT 0,
+    description TEXT,
+    sort_order  INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(name, stream)
 );
 
@@ -171,9 +173,28 @@ KCSE_SCALE = [
 ]
 
 
+
+def _add_columns_if_missing():
+    """Safely add new columns to existing databases."""
+    from db.connection import get_connection
+    conn = get_connection()
+    cursor = conn.execute("PRAGMA table_info(classes)")
+    existing_cols = [row[1] for row in cursor.fetchall()]
+    
+    if "is_combined" not in existing_cols:
+        conn.execute("ALTER TABLE classes ADD COLUMN is_combined INTEGER NOT NULL DEFAULT 0")
+        conn.commit()
+        print("Added is_combined column to classes.")
+    if "description" not in existing_cols:
+        conn.execute("ALTER TABLE classes ADD COLUMN description TEXT")
+        conn.commit()
+        print("Added description column to classes.")
+    conn.close()
+
 def run():
     print("Running GradeVault migrations...")
     execute_script(SCHEMA)
+    _add_columns_if_missing()
 
     # Default admin
     if not query_one("SELECT id FROM users WHERE username = 'admin'"):

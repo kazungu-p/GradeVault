@@ -90,13 +90,28 @@ def get_assignments(user_id: int) -> list:
 
 def assign_teacher(user_id: int, subject_id: int,
                    class_id: int) -> tuple[bool, str]:
+    # Check if already assigned to this user
     existing = query_one(
         "SELECT id FROM teacher_assignments "
         "WHERE user_id=? AND subject_id=? AND class_id=?",
         (user_id, subject_id, class_id),
     )
     if existing:
-        return False, "This assignment already exists."
+        return False, "This assignment already exists for this teacher."
+
+    # Check if another teacher already has this subject+class
+    taken = query_one(
+        """
+        SELECT u.full_name
+        FROM teacher_assignments ta
+        JOIN users u ON ta.user_id = u.id
+        WHERE ta.subject_id=? AND ta.class_id=? AND ta.user_id != ?
+        """,
+        (subject_id, class_id, user_id),
+    )
+    if taken:
+        return False, f"Already assigned to {taken['full_name']}. Only one teacher per subject/class."
+
     execute(
         "INSERT INTO teacher_assignments (user_id, subject_id, class_id) VALUES (?,?,?)",
         (user_id, subject_id, class_id),

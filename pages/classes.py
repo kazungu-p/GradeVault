@@ -94,9 +94,12 @@ class ClassesPage(ctk.CTkFrame):
             row.pack(fill="x")
             row.pack_propagate(False)
 
-            ctk.CTkLabel(row, text=c["name"], font=("", 12),
-                         text_color=TEXT, width=160,
-                         anchor="w").pack(side="left", padx=(12, 0))
+            name_txt = c["name"]
+            if c.get("is_combined"):
+                name_txt += "  ⬡"  # combined marker
+            ctk.CTkLabel(row, text=name_txt, font=("", 12),
+                         text_color=ACCENT if c.get("is_combined") else TEXT,
+                         width=180, anchor="w").pack(side="left", padx=(12, 0))
             ctk.CTkLabel(row, text=c["stream"] or "—", font=("", 12),
                          text_color=TEXT_MUTED, width=100,
                          anchor="w").pack(side="left", padx=(12, 0))
@@ -141,15 +144,18 @@ class ClassesPage(ctk.CTkFrame):
         ClassForm(self, title="Edit class", cls=cls,
                   on_save=self._on_edit_class)
 
-    def _on_add_class(self, name, stream):
-        ok, msg = create_class(name, stream)
+    def _on_add_class(self, name, stream, is_combined=False, description=None):
+        ok, msg = create_class(name, stream, is_combined=is_combined,
+                               description=description)
         if ok:
             self._load_classes()
             return True, msg
         return False, msg
 
-    def _on_edit_class(self, name, stream, cls_id=None):
-        ok, msg = update_class(cls_id, name, stream)
+    def _on_edit_class(self, name, stream, cls_id=None,
+                       is_combined=False, description=None):
+        ok, msg = update_class(cls_id, name, stream, is_combined=is_combined,
+                               description=description)
         if ok:
             self._load_classes()
             return True, msg
@@ -303,7 +309,7 @@ class ClassForm(ctk.CTkToplevel):
     def __init__(self, parent, title, on_save, cls=None):
         super().__init__(parent)
         self.title(title)
-        self.geometry("440x320")
+        self.geometry("460x420")
         self.resizable(False, False)
         self.grab_set()
         self._on_save = on_save
@@ -314,39 +320,69 @@ class ClassForm(ctk.CTkToplevel):
         f = ctk.CTkFrame(self, fg_color=BG)
         f.pack(fill="both", expand=True, padx=36, pady=32)
 
-        heading(f, self.title()).pack(anchor="w", pady=(0, 16))
+        heading(f, self.title()).pack(anchor="w", pady=(0, 14))
 
-        muted(f, "Class name  (e.g. Form 1, Grade 10)").pack(anchor="w")
-        self._name = ctk.CTkEntry(f, width=350,
-                                   fg_color=SURFACE, border_color=BORDER)
+        muted(f, "Class name  (e.g. Form 1, Grade 10, Form 4 Physics Combined)").pack(anchor="w")
+        self._name = ctk.CTkEntry(f, width=370, fg_color=SURFACE, border_color=BORDER)
         self._name.pack(anchor="w", pady=(4, 14))
 
-        muted(f, "Stream  (optional — e.g. A, North, Lion)").pack(anchor="w")
-        self._stream = ctk.CTkEntry(f, width=350,
-                                     fg_color=SURFACE, border_color=BORDER,
+        muted(f, "Stream  (optional — leave blank for combined/single-stream classes)").pack(anchor="w")
+        self._stream = ctk.CTkEntry(f, width=370, fg_color=SURFACE, border_color=BORDER,
                                      placeholder_text="Leave blank if no streams")
         self._stream.pack(anchor="w", pady=(4, 14))
+
+        self._is_combined = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(f,
+            text="Combined class (optional subject — students from multiple streams)",
+            variable=self._is_combined,
+            font=("", 12), text_color=TEXT,
+            fg_color=ACCENT, hover_color=ACCENT_DARK,
+            command=self._toggle_desc,
+        ).pack(anchor="w", pady=(0, 8))
+
+        self._desc_frame = ctk.CTkFrame(f, fg_color="transparent")
+        muted(self._desc_frame, "Description (e.g. Physics students from Form 4 A, B, C)").pack(anchor="w")
+        self._desc = ctk.CTkEntry(self._desc_frame, width=370, fg_color=SURFACE,
+                                   border_color=BORDER,
+                                   placeholder_text="Optional note about this combined class")
+        self._desc.pack(anchor="w", pady=(4, 0))
 
         if self._cls:
             self._name.insert(0, self._cls["name"])
             if self._cls.get("stream"):
                 self._stream.insert(0, self._cls["stream"])
+            if self._cls.get("is_combined"):
+                self._is_combined.set(True)
+                self._desc_frame.pack(anchor="w", fill="x", pady=(0, 8))
+            if self._cls.get("description"):
+                self._desc.insert(0, self._cls["description"])
 
         self._err = ctk.CTkLabel(f, text="", text_color=DANGER, font=("", 12))
-        self._err.pack(anchor="w")
+        self._err.pack(anchor="w", pady=(8, 0))
 
         btn_row = ctk.CTkFrame(f, fg_color="transparent")
-        btn_row.pack(fill="x", pady=(8, 0))
+        btn_row.pack(fill="x", pady=(12, 0))
         ghost_btn(btn_row, "Cancel", command=self.destroy, width=100).pack(side="left")
         primary_btn(btn_row, "Save", command=self._submit, width=100).pack(side="right")
 
-    def _submit(self):
-        name   = self._name.get().strip()
-        stream = self._stream.get().strip() or None
-        if self._cls:
-            ok, msg = self._on_save(name, stream, cls_id=self._cls["id"])
+    def _toggle_desc(self):
+        if self._is_combined.get():
+            self._desc_frame.pack(anchor="w", fill="x", pady=(0, 8),
+                                   before=self._err)
         else:
-            ok, msg = self._on_save(name, stream)
+            self._desc_frame.pack_forget()
+
+    def _submit(self):
+        name        = self._name.get().strip()
+        stream      = self._stream.get().strip() or None
+        is_combined = self._is_combined.get()
+        desc        = self._desc.get().strip() or None
+        if self._cls:
+            ok, msg = self._on_save(name, stream, cls_id=self._cls["id"],
+                                    is_combined=is_combined, description=desc)
+        else:
+            ok, msg = self._on_save(name, stream,
+                                    is_combined=is_combined, description=desc)
         if ok:
             self.destroy()
         else:

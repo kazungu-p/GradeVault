@@ -9,7 +9,9 @@ def get_classes() -> list:
 
 
 def create_class(name: str, stream: str = None,
-                 sort_order: int = 0) -> tuple[bool, str]:
+                 sort_order: int = 0,
+                 is_combined: bool = False,
+                 description: str = None) -> tuple[bool, str]:
     name = name.strip()
     stream = stream.strip() if stream and stream.strip() else None
     if not name:
@@ -22,21 +24,23 @@ def create_class(name: str, stream: str = None,
         label = f"{name} {stream}" if stream else name
         return False, f"'{label}' already exists."
     execute(
-        "INSERT INTO classes (name, stream, sort_order) VALUES (?,?,?)",
-        (name, stream, sort_order),
+        "INSERT INTO classes (name, stream, sort_order, is_combined, description) VALUES (?,?,?,?,?)",
+        (name, stream, sort_order, 1 if is_combined else 0, description or None),
     )
     return True, "Class created."
 
 
 def update_class(class_id: int, name: str,
-                 stream: str = None) -> tuple[bool, str]:
+                 stream: str = None,
+                 is_combined: bool = False,
+                 description: str = None) -> tuple[bool, str]:
     name = name.strip()
     stream = stream.strip() if stream and stream.strip() else None
     if not name:
         return False, "Class name is required."
     execute(
-        "UPDATE classes SET name=?, stream=? WHERE id=?",
-        (name, stream, class_id),
+        "UPDATE classes SET name=?, stream=?, is_combined=?, description=? WHERE id=?",
+        (name, stream, 1 if is_combined else 0, description or None, class_id),
     )
     return True, "Class updated."
 

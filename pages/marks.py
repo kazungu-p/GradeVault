@@ -264,6 +264,20 @@ class MarksPage(ctk.CTkFrame):
         self._classes_list = classes
         self._update_subject_menu(classes, user)
 
+        # Restore last selection
+        last_cls  = user.get("_last_class", "")
+        last_subj = user.get("_last_subject", "")
+        if last_cls and last_cls in [
+            f"{c['name']}{' ' + c['stream'] if c.get('stream') else ''}"
+            for c in classes
+        ]:
+            self._cls_var.set(last_cls)
+            self._update_subject_menu(classes, user)
+            if last_subj and last_subj in [
+                s["name"] for s in getattr(self, "_subjects_for_class", [])
+            ]:
+                self._subj_var.set(last_subj)
+
         btn_row = ctk.CTkFrame(bf, fg_color="transparent")
         btn_row.pack(fill="x", pady=(16, 0))
 
@@ -335,6 +349,12 @@ class MarksPage(ctk.CTkFrame):
         if not cls or not subj:
             return
 
+        # Remember selection for next time
+        session_user = Session.get()
+        if session_user:
+            session_user["_last_class"]   = cls_label
+            session_user["_last_subject"] = subj_label
+
         self._class   = cls
         self._subject = subj
         self._show_step3()
@@ -363,6 +383,13 @@ class MarksPage(ctk.CTkFrame):
 
         enrolled = get_enrolled_students(subj["id"], cls["id"])
         self._marks_cache = get_marks(asmt["id"], subj["id"], cls["id"])
+
+        # Load subject-specific out_of from existing marks, fall back to assessment default
+        if self._marks_cache:
+            first = next(iter(self._marks_cache.values()))
+            self._out_of = first.get("out_of") or asmt["out_of"]
+        else:
+            self._out_of = asmt["out_of"]
 
         # Top bar
         top = ctk.CTkFrame(f, fg_color="transparent")
