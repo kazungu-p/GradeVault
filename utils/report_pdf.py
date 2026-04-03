@@ -107,39 +107,36 @@ def _student_header_table(result, class_label, term, s):
 
 
 def _marks_table(result, s):
-    selected_names = {sub["subject_name"] for sub in result["selected"]}
-    curriculum     = result["curriculum"]
-    is_cbe         = curriculum == "CBE"
+    curriculum = result["curriculum"]
+    is_cbe     = curriculum == "CBE"
+    subjects   = result["subjects"]  # already filtered to best 7
 
     header = ["Subject", "Score", "Out of", "%", "Grade", "Comment"]
-    col_w  = [4.5*cm, 1.6*cm, 1.6*cm, 1.6*cm, 1.4*cm, 5.5*cm]
+    col_w  = [4.5*cm, 1.5*cm, 1.5*cm, 1.5*cm, 1.4*cm, 5.8*cm]
 
     rows = [header]
-    for sub in result["subjects"]:
-        is_selected = sub["subject_name"] in selected_names
+    for sub in subjects:
+        is_pad = sub.get("is_padding", False)
         comment = Paragraph(sub["comment"], s["comment"])
         rows.append([
-            sub["subject_name"] + (" *" if is_selected else ""),
-            f"{sub['raw_score']:.0f}" if sub["raw_score"] is not None else "—",
-            f"{sub['out_of']:.0f}",
-            f"{sub['percentage']:.1f}%",
+            sub["subject_name"],
+            "—" if is_pad else (f"{sub['raw_score']:.0f}" if sub["raw_score"] is not None else "—"),
+            "—" if is_pad else f"{sub['out_of']:.0f}",
+            "0.0%" if is_pad else f"{sub['percentage']:.1f}%",
             sub["grade"],
             comment,
         ])
 
     # Aggregate row
+    agg_label = "Mean (Best 7)" if not is_cbe else "Mean (All subjects)"
     rows.append([
-        Paragraph("<b>Aggregate (Best 7)</b>" if not is_cbe
-                  else "<b>Aggregate (All subjects)</b>",
-                  s["normal"]),
+        Paragraph(f"<b>{agg_label}</b>", s["normal"]),
         "", "", f"{result['mean']:.1f}%",
         result["grade"], ""
     ])
 
     t = Table(rows, colWidths=col_w, repeatRows=1)
-
     style = [
-        # Header
         ("BACKGROUND",    (0, 0), (-1, 0), HEADER_BG),
         ("TEXTCOLOR",     (0, 0), (-1, 0), ACCENT),
         ("FONTNAME",      (0, 0), (-1, 0), "Helvetica-Bold"),
@@ -150,17 +147,11 @@ def _marks_table(result, s):
         ("GRID",          (0, 0), (-1, -1), 0.4, BORDER_C),
         ("ALIGN",         (1, 0), (4, -1), "CENTER"),
         ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
-        # Aggregate row
         ("BACKGROUND",    (0, -1), (-1, -1), HEADER_BG),
         ("FONTNAME",      (0, -1), (-1, -1), "Helvetica-Bold"),
     ]
-
-    # Alternating rows + highlight selected subjects
-    for i, row in enumerate(rows[1:-1], start=1):
-        subj_name = result["subjects"][i-1]["subject_name"]
-        if subj_name in selected_names:
-            style.append(("BACKGROUND", (0, i), (-1, i), SELECTED))
-        elif i % 2 == 0:
+    for i in range(1, len(rows)-1):
+        if i % 2 == 0:
             style.append(("BACKGROUND", (0, i), (-1, i), ALT_ROW))
 
     t.setStyle(TableStyle(style))
@@ -251,7 +242,7 @@ def generate_report_cards(output_path: str,
 
         if result["curriculum"] == "8-4-4":
             card_elements.append(Paragraph(
-                "* Subjects marked with * are counted in the aggregate (Best 7 rule)",
+                "Showing best 7 subjects: Mathematics + best language + best 5 remaining.",
                 s["small"]))
 
         card_elements.append(Spacer(1, 0.4*cm))

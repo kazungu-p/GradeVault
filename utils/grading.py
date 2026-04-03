@@ -1,28 +1,44 @@
 from db.connection import query, query_one
 
-# ── KCSE Grading (8-4-4) ─────────────────────────────────────
-KCSE_SCALE = [
-    (80, 100, "A",  12),
-    (75,  79, "A-", 11),
-    (70,  74, "B+", 10),
-    (65,  69, "B",   9),
-    (60,  64, "B-",  8),
-    (55,  59, "C+",  7),
-    (50,  54, "C",   6),
-    (45,  49, "C-",  5),
-    (40,  44, "D+",  4),
-    (35,  39, "D",   3),
-    (30,  34, "D-",  2),
-    (0,   29, "E",   1),
+# ── Default scales (fallback) ────────────────────────────────
+_KCSE_DEFAULT = [
+    (80, 100, "A",  12), (75, 79, "A-", 11), (70, 74, "B+", 10),
+    (65, 69, "B",    9), (60, 64, "B-",  8), (55, 59, "C+",  7),
+    (50, 54, "C",    6), (45, 49, "C-",  5), (40, 44, "D+",  4),
+    (35, 39, "D",    3), (30, 34, "D-",  2), (0,  29, "E",    1),
+]
+_CBE_DEFAULT = [
+    (75, 100, "EE", 4), (50, 74, "ME", 3),
+    (25, 49,  "AE", 2), (0,  24, "BE", 1),
 ]
 
-# ── CBE Grading ───────────────────────────────────────────────
-CBE_SCALE = [
-    (75, 100, "EE", 4),   # Exceeds Expectations
-    (50,  74, "ME", 3),   # Meets Expectations
-    (25,  49, "AE", 2),   # Approaches Expectations
-    (0,   24, "BE", 1),   # Below Expectations
-]
+
+def _load_scale(prefix: str, defaults: list) -> list:
+    """Load grading scale from settings, falling back to defaults."""
+    from routes.settings import get_setting
+    result = []
+    for _, _, grade, _ in defaults:
+        try:
+            min_s = float(get_setting(f"{prefix}_{grade}_min", ""))
+            max_s = float(get_setting(f"{prefix}_{grade}_max", ""))
+            pts   = float(get_setting(f"{prefix}_{grade}_pts", ""))
+            result.append((min_s, max_s, grade, int(pts)))
+        except (ValueError, TypeError):
+            # Fall back to default for this grade
+            orig = next(d for d in defaults if d[2] == grade)
+            result.append(orig)
+    return result if result else defaults
+
+
+def _get_kcse_scale():
+    return _load_scale("kcse", _KCSE_DEFAULT)
+
+def _get_cbe_scale():
+    return _load_scale("cbe", _CBE_DEFAULT)
+
+# Keep module-level names for backward compat
+KCSE_SCALE = _KCSE_DEFAULT
+CBE_SCALE  = _CBE_DEFAULT
 
 LANGUAGE_SUBJECTS = {"english", "kiswahili", "english language",
                      "kiswahili language", "fasihi"}
@@ -41,10 +57,10 @@ def detect_curriculum(class_name: str) -> str:
 
 
 def grade_from_percentage(percentage: float, curriculum: str) -> tuple[str, int]:
-    """Returns (grade_letter, points)."""
-    scale = CBE_SCALE if curriculum == "CBE" else KCSE_SCALE
+    """Returns (grade_letter, points) using saved grading scale."""
+    scale = _get_cbe_scale() if curriculum == "CBE" else _get_kcse_scale()
     for min_s, max_s, grade, points in scale:
-        if min_s <= percentage <= max_s:
+        if min_s <= round(percentage, 1) <= max_s:
             return grade, points
     return ("BE" if curriculum == "CBE" else "E"), 1
 
@@ -84,13 +100,14 @@ def performance_band(mean_pct: float) -> str:
 
 def select_best_7(subject_marks: list[dict]) -> list[dict]:
     """
-    Apply KCSE best-7 rule.
-    subject_marks: list of {subject_name, percentage, grade, points, ...}
-    Returns the selected 7 subjects.
+    Apply KCSE best-7 rule:
+      1. Mathematics (compulsory)
+      2. Best language (English or Kiswahili)
+      3. Best 5 from remaining subjects
+    Total = 7. If fewer than 7 subjects exist, pad with zero-score
+    placeholder subjects so the mean is correctly penalized.
+    Returns exactly 7 entries.
     """
-    if not subject_marks:
-        return []
-
     remaining = list(subject_marks)
     selected  = []
 
@@ -100,6 +117,9 @@ def select_best_7(subject_marks: list[dict]) -> list[dict]:
     if maths:
         selected.append(maths)
         remaining.remove(maths)
+    else:
+        # No maths — add a zero placeholder
+        selected.append(_zero_subject("Mathematics"))
 
     # 2. Best language
     languages = [s for s in remaining
@@ -108,13 +128,33 @@ def select_best_7(subject_marks: list[dict]) -> list[dict]:
         best_lang = max(languages, key=lambda x: x["percentage"])
         selected.append(best_lang)
         remaining.remove(best_lang)
+    else:
+        selected.append(_zero_subject("Language"))
 
-    # 3. Best 5 from remaining (sorted by percentage descending)
+    # 3. Best 5 from remaining
     remaining_sorted = sorted(remaining,
                                key=lambda x: x["percentage"], reverse=True)
     selected.extend(remaining_sorted[:5])
 
+    # 4. Pad with zeros if fewer than 7 subjects
+    while len(selected) < 7:
+        selected.append(_zero_subject(f"Subject {len(selected)+1}"))
+
     return selected[:7]
+
+
+def _zero_subject(name: str) -> dict:
+    """Placeholder subject with 0% for padding."""
+    return {
+        "subject_name": name,
+        "raw_score":    0,
+        "out_of":       100,
+        "percentage":   0.0,
+        "grade":        "E",
+        "points":       1,
+        "comment":      "No marks entered.",
+        "is_padding":   True,
+    }
 
 
 def compute_student_result(student_id: int, assessment_id: int,
@@ -170,8 +210,9 @@ def compute_student_result(student_id: int, assessment_id: int,
         mean, grade, points = 0, "—", 0
 
     return {
-        "subjects":   subject_marks,   # all subjects (for display)
-        "selected":   selected,        # subjects counted in aggregate
+        "subjects":   selected,        # only selected 7 shown on report
+        "all_subjects": subject_marks, # kept for reference
+        "selected":   selected,
         "mean":       mean,
         "grade":      grade,
         "points":     points,

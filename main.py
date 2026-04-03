@@ -37,7 +37,6 @@ NAV_ITEMS = [
     ("classes",   "Classes",     "🏫"),
     ("settings",  "Settings",    "⚙"),
     ("marks",     "Marks entry", "✏"),
-    ("grading",   "Grading",     "★"),
     ("reports",   "Reports",     "▦"),
     ("analytics", "Analytics",   "▲"),
 ]
@@ -251,7 +250,7 @@ class App(ctk.CTk):
             ClassesPage(self._content_frame)
         elif key == "marks":
             MarksPage(self._content_frame)
-        elif key == "reports" or key == "grading":
+        elif key == "reports":
             ReportsPage(self._content_frame)
         elif key == "settings":
             SettingsPage(self._content_frame)

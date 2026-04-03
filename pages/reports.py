@@ -1,5 +1,6 @@
 import customtkinter as ctk
 import os
+import tempfile
 from tkinter import filedialog
 from utils.theme import *
 from routes.terms import get_all_terms, get_current_term
@@ -7,9 +8,8 @@ from routes.assessments import get_assessments
 from routes.classes import get_classes
 from routes.settings import get_setting, set_setting
 from utils.grading import detect_curriculum
+from db.connection import query, execute, execute_many
 
-
-# ── Default comment templates ─────────────────────────────────
 DEFAULT_COMMENTS = {
     "principal_excellent": (
         "It is with great pleasure that I commend this student for their outstanding "
@@ -64,6 +64,28 @@ BANDS = [
     ("below_average", "Below average  (mean < 40%)"),
 ]
 
+KCSE_DEFAULT = [
+    ("A",  80, 100, 12),
+    ("A-", 75, 79,  11),
+    ("B+", 70, 74,  10),
+    ("B",  65, 69,   9),
+    ("B-", 60, 64,   8),
+    ("C+", 55, 59,   7),
+    ("C",  50, 54,   6),
+    ("C-", 45, 49,   5),
+    ("D+", 40, 44,   4),
+    ("D",  35, 39,   3),
+    ("D-", 30, 34,   2),
+    ("E",   0, 29,   1),
+]
+
+CBE_DEFAULT = [
+    ("EE", 75, 100, 4),
+    ("ME", 50, 74,  3),
+    ("AE", 25, 49,  2),
+    ("BE",  0, 24,  1),
+]
+
 
 class ReportsPage(ctk.CTkFrame):
     def __init__(self, parent):
@@ -79,134 +101,121 @@ class ReportsPage(ctk.CTkFrame):
 
     def _build(self):
         self.pack(fill="both", expand=True, padx=20, pady=20)
-
-        heading(self, "Reports & Grading").pack(anchor="w", pady=(0, 16))
+        heading(self, "Reports").pack(anchor="w", pady=(0, 14))
 
         # Tab bar
+        self._active_tab = "generate"
         tabs = ctk.CTkFrame(self, fg_color="transparent")
         tabs.pack(fill="x", pady=(0, 14))
-        self._tab_var = ctk.StringVar(value="generate")
+        self._tab_btns = {}
         for key, lbl in [("generate", "Generate reports"),
-                          ("comments", "Comment templates")]:
-            ctk.CTkButton(
+                          ("comments", "Comment templates"),
+                          ("grading",  "Grading scales")]:
+            btn = ctk.CTkButton(
                 tabs, text=lbl, width=160, height=30,
-                fg_color=ACCENT if self._tab_var.get() == key else "transparent",
-                text_color="white" if self._tab_var.get() == key else TEXT_MUTED,
+                fg_color=ACCENT if key == "generate" else "transparent",
+                text_color="white" if key == "generate" else TEXT_MUTED,
                 hover_color=ACCENT_BG, corner_radius=6, font=("", 12),
                 command=lambda k=key: self._switch_tab(k),
-            ).pack(side="left", padx=(0, 6))
+            )
+            btn.pack(side="left", padx=(0, 6))
+            self._tab_btns[key] = btn
 
-        self._tab_frames = {}
-        self._generate_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self._comments_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self._frames = {}
+        for key in ("generate", "comments", "grading"):
+            f = ctk.CTkFrame(self, fg_color="transparent")
+            self._frames[key] = f
 
-        self._build_generate(self._generate_frame)
-        self._build_comments(self._comments_frame)
+        self._build_generate(self._frames["generate"])
+        self._build_comments(self._frames["comments"])
+        self._build_grading(self._frames["grading"])
         self._switch_tab("generate")
 
     def _switch_tab(self, key):
-        self._tab_var.set(key)
-        self._generate_frame.pack_forget()
-        self._comments_frame.pack_forget()
-        if key == "generate":
-            self._generate_frame.pack(fill="both", expand=True)
-        else:
-            self._comments_frame.pack(fill="both", expand=True)
-        # Refresh tab button colors
-        for w in self.winfo_children():
-            if isinstance(w, ctk.CTkFrame) and w != self._generate_frame \
-                    and w != self._comments_frame:
-                for btn in w.winfo_children():
-                    if isinstance(btn, ctk.CTkButton):
-                        is_active = (btn.cget("text").lower().startswith(
-                            key.replace("_", " ")))
+        self._active_tab = key
+        for k, f in self._frames.items():
+            f.pack_forget()
+        self._frames[key].pack(fill="both", expand=True)
+        for k, btn in self._tab_btns.items():
+            btn.configure(
+                fg_color=ACCENT if k == key else "transparent",
+                text_color="white" if k == key else TEXT_MUTED)
 
     # ── Generate tab ──────────────────────────────────────────
     def _build_generate(self, parent):
         scroll = ctk.CTkScrollableFrame(parent, fg_color=BG, corner_radius=0)
         scroll.pack(fill="both", expand=True)
 
-        # Step 1 — Select
-        s1 = self._section(scroll, "Step 1 — Select term, assessment and class")
+        s1 = self._section(scroll, "Select term, assessment and class")
         f1 = ctk.CTkFrame(s1, fg_color="transparent")
         f1.pack(fill="x", padx=16, pady=(0, 16))
 
-        # Term
         muted(f1, "Term").pack(anchor="w")
-        terms = get_all_terms()
-        term_labels = [f"Term {t['term']}, {t['year']}" for t in terms]
-        current = get_current_term()
-        default_term = (f"Term {current['term']}, {current['year']}"
-                        if current and term_labels else
-                        (term_labels[0] if term_labels else "—"))
-        self._term_var = ctk.StringVar(value=default_term)
-        self._terms_data = terms
+        self._terms_data = get_all_terms()
+        term_labels = [f"Term {t['term']}, {t['year']}" for t in self._terms_data]
+        current     = get_current_term()
+        default_t   = (f"Term {current['term']}, {current['year']}"
+                       if current and term_labels else
+                       (term_labels[0] if term_labels else "—"))
+        self._term_var = ctk.StringVar(value=default_t)
         ctk.CTkOptionMenu(f1, variable=self._term_var,
                           values=term_labels if term_labels else ["—"],
-                          width=300, fg_color=SURFACE,
+                          width=320, fg_color=SURFACE,
                           button_color=BORDER, text_color=TEXT,
                           dropdown_fg_color=SURFACE,
                           command=self._on_term_change,
                           ).pack(anchor="w", pady=(4, 12))
 
-        # Assessment
         muted(f1, "Assessment").pack(anchor="w")
-        self._asmt_var = ctk.StringVar(value="—")
+        self._asmt_var  = ctk.StringVar(value="—")
+        self._asmt_data = []
         self._asmt_menu = ctk.CTkOptionMenu(
-            f1, variable=self._asmt_var,
-            values=["—"], width=300,
-            fg_color=SURFACE, button_color=BORDER,
+            f1, variable=self._asmt_var, values=["—"],
+            width=320, fg_color=SURFACE, button_color=BORDER,
             text_color=TEXT, dropdown_fg_color=SURFACE)
         self._asmt_menu.pack(anchor="w", pady=(4, 12))
-        self._asmt_data = []
         self._on_term_change()
 
-        # Class
         muted(f1, "Class").pack(anchor="w")
-        classes = get_classes()
-        self._classes_data = classes
+        self._classes_data = get_classes()
         class_labels = [
-            f"{c['name']}{' ' + c['stream'] if c.get('stream') else ''}"
-            for c in classes
+            f"{c['name']}{' '+c['stream'] if c.get('stream') else ''}"
+            for c in self._classes_data
         ]
         self._class_var = ctk.StringVar(
             value=class_labels[0] if class_labels else "—")
-        self._class_menu = ctk.CTkOptionMenu(
-            f1, variable=self._class_var,
-            values=class_labels if class_labels else ["—"],
-            width=300, fg_color=SURFACE,
-            button_color=BORDER, text_color=TEXT,
-            dropdown_fg_color=SURFACE,
-            command=self._on_class_change,
-        )
-        self._class_menu.pack(anchor="w", pady=(4, 0))
+        ctk.CTkOptionMenu(f1, variable=self._class_var,
+                          values=class_labels if class_labels else ["—"],
+                          width=320, fg_color=SURFACE,
+                          button_color=BORDER, text_color=TEXT,
+                          dropdown_fg_color=SURFACE,
+                          command=self._on_class_change,
+                          ).pack(anchor="w", pady=(4, 0))
 
-        # Curriculum detection
         self._curr_label = muted(f1, "")
         self._curr_label.pack(anchor="w", pady=(4, 0))
         self._on_class_change()
 
-        # Step 2 — Generate
-        s2 = self._section(scroll, "Step 2 — Generate")
+        s2 = self._section(scroll, "Generate")
         f2 = ctk.CTkFrame(s2, fg_color="transparent")
         f2.pack(fill="x", padx=16, pady=(0, 16))
 
-        muted(f2, "Report cards will be generated for all students in the "
-                  "selected class.\nBest-7 rule applied automatically for "
-                  "8-4-4 classes. Comment templates from the 'Comment "
-                  "templates' tab will be used.").pack(anchor="w", pady=(0, 12))
+        muted(f2,
+              "Clicking Generate will process all students in the selected class,\n"
+              "apply the best-7 rule, compute grades and open a preview window."
+              ).pack(anchor="w", pady=(0, 12))
 
         self._gen_status = ctk.CTkLabel(
             f2, text="", font=("", 12), text_color=TEXT_MUTED)
         self._gen_status.pack(anchor="w", pady=(0, 8))
 
-        primary_btn(f2, "Generate report cards →",
-                    command=self._generate, width=220).pack(anchor="w")
+        primary_btn(f2, "Generate & preview →",
+                    command=self._generate, width=200).pack(anchor="w")
 
     def _on_term_change(self, _=None):
-        term_label = self._term_var.get()
+        t_label = self._term_var.get()
         term = next((t for t in self._terms_data
-                     if f"Term {t['term']}, {t['year']}" == term_label), None)
+                     if f"Term {t['term']}, {t['year']}" == t_label), None)
         if not term:
             return
         asmts = get_assessments(term_id=term["id"])
@@ -218,37 +227,28 @@ class ReportsPage(ctk.CTkFrame):
     def _on_class_change(self, _=None):
         cls_label = self._class_var.get()
         cls = next((c for c in self._classes_data
-                    if f"{c['name']}{' ' + c['stream'] if c.get('stream') else ''}"
+                    if f"{c['name']}{' '+c['stream'] if c.get('stream') else ''}"
                     == cls_label), None)
         if cls:
             curr = detect_curriculum(cls["name"])
             self._curr_label.configure(
-                text=f"Detected curriculum: {curr}",
+                text=f"Curriculum: {curr}",
                 text_color=ACCENT)
 
     def _generate(self):
         from utils.report_pdf import generate_report_cards
 
-        asmt_name = self._asmt_var.get()
         asmt = next((a for a in self._asmt_data
-                     if a["name"] == asmt_name), None)
+                     if a["name"] == self._asmt_var.get()), None)
         cls_label = self._class_var.get()
-        cls = next((c for c in self._classes_data
-                    if f"{c['name']}{' ' + c['stream'] if c.get('stream') else ''}"
-                    == cls_label), None)
+        cls  = next((c for c in self._classes_data
+                     if f"{c['name']}{' '+c['stream'] if c.get('stream') else ''}"
+                     == cls_label), None)
 
         if not asmt or not cls:
             self._gen_status.configure(
-                text="Please select an assessment and class.", text_color=DANGER)
-            return
-
-        path = filedialog.asksaveasfilename(
-            defaultextension=".pdf",
-            filetypes=[("PDF", "*.pdf")],
-            initialfile=f"reports_{cls_label.replace(' ', '_')}.pdf",
-            title="Save report cards as",
-        )
-        if not path:
+                text="Please select an assessment and class.",
+                text_color=DANGER)
             return
 
         self._gen_status.configure(
@@ -256,13 +256,27 @@ class ReportsPage(ctk.CTkFrame):
         self.update()
 
         try:
+            tmp = tempfile.NamedTemporaryFile(
+                suffix=".pdf", delete=False,
+                prefix=f"reports_{cls_label.replace(' ','_')}_")
+            tmp_path = tmp.name
+            tmp.close()
+
             count, _ = generate_report_cards(
-                path, asmt["id"], cls["id"], self._comments)
+                tmp_path, asmt["id"], cls["id"], self._comments)
+
+            if count == 0:
+                self._gen_status.configure(
+                    text="No marks found for this class and assessment.",
+                    text_color=DANGER)
+                return
+
             self._gen_status.configure(
-                text=f"✓ {count} report card(s) generated successfully.",
-                text_color=SUCCESS)
-            os.system(f'open "{path}"' if os.name != "nt"
-                      else f'start "" "{path}"')
+                text=f"✓ {count} report card(s) ready.", text_color=SUCCESS)
+
+            ReportPreviewDialog(self, tmp_path, cls_label,
+                                asmt["name"], count)
+
         except Exception as e:
             self._gen_status.configure(
                 text=f"Error: {e}", text_color=DANGER)
@@ -271,13 +285,10 @@ class ReportsPage(ctk.CTkFrame):
     def _build_comments(self, parent):
         scroll = ctk.CTkScrollableFrame(parent, fg_color=BG, corner_radius=0)
         scroll.pack(fill="both", expand=True)
-
         self._comment_widgets = {}
 
-        for role, role_label in [
-            ("principal", "Principal's comments"),
-            ("teacher",   "Class teacher's comments"),
-        ]:
+        for role, role_label in [("principal", "Principal's comments"),
+                                  ("teacher",   "Class teacher's comments")]:
             sec = self._section(scroll, role_label)
             sf  = ctk.CTkFrame(sec, fg_color="transparent")
             sf.pack(fill="x", padx=16, pady=(0, 14))
@@ -293,22 +304,101 @@ class ReportsPage(ctk.CTkFrame):
                 box.insert("1.0", self._comments.get(full_key, ""))
                 self._comment_widgets[full_key] = box
 
-        # Save button
         btn_row = ctk.CTkFrame(scroll, fg_color="transparent")
         btn_row.pack(fill="x", pady=16)
         self._save_msg = ctk.CTkLabel(
             btn_row, text="", font=("", 12), text_color=SUCCESS)
         self._save_msg.pack(side="right", padx=(0, 16))
-        primary_btn(btn_row, "Save comment templates",
-                    command=self._save_comments, width=200).pack(side="right")
+        primary_btn(btn_row, "Save templates",
+                    command=self._save_comments, width=160).pack(side="right")
 
     def _save_comments(self):
         for key, box in self._comment_widgets.items():
             text = box.get("1.0", "end").strip()
             self._comments[key] = text
             set_setting(f"comment_{key}", text)
-        self._save_msg.configure(text="✓ Templates saved.")
+        self._save_msg.configure(text="✓ Saved.")
         self.after(2000, lambda: self._save_msg.configure(text=""))
+
+    # ── Grading scales tab ────────────────────────────────────
+    def _build_grading(self, parent):
+        scroll = ctk.CTkScrollableFrame(parent, fg_color=BG, corner_radius=0)
+        scroll.pack(fill="both", expand=True)
+
+        for curriculum, default_scale in [("8-4-4 (KCSE)", KCSE_DEFAULT),
+                                           ("CBE",          CBE_DEFAULT)]:
+            sec = self._section(scroll, f"{curriculum} Grading Scale")
+            sf  = ctk.CTkFrame(sec, fg_color="transparent")
+            sf.pack(fill="x", padx=16, pady=(0, 14))
+
+            # Header
+            hdr = ctk.CTkFrame(sf, fg_color="#F3F4F6", corner_radius=6)
+            hdr.pack(fill="x", pady=(0, 4))
+            for txt, w in [("Grade", 80), ("Min %", 90),
+                            ("Max %", 90), ("Points", 80)]:
+                ctk.CTkLabel(hdr, text=txt, font=("", 11, "bold"),
+                             text_color=TEXT_MUTED, width=w,
+                             anchor="w").pack(side="left", padx=(10, 0), pady=6)
+
+            key_prefix = "kcse" if "KCSE" in curriculum else "cbe"
+            rows_frame = ctk.CTkFrame(sf, fg_color="transparent")
+            rows_frame.pack(fill="x")
+
+            for i, (grade, min_s, max_s, pts) in enumerate(default_scale):
+                saved_min = get_setting(f"{key_prefix}_{grade}_min", str(min_s))
+                saved_max = get_setting(f"{key_prefix}_{grade}_max", str(max_s))
+                saved_pts = get_setting(f"{key_prefix}_{grade}_pts", str(pts))
+
+                row = ctk.CTkFrame(rows_frame,
+                                   fg_color=SURFACE if i%2==0 else "#FAFAFA",
+                                   corner_radius=0)
+                row.pack(fill="x")
+
+                ctk.CTkLabel(row, text=grade, font=("", 12, "bold"),
+                             text_color=ACCENT, width=80,
+                             anchor="w").pack(side="left", padx=(10, 0), pady=4)
+
+                for val, setting_key in [
+                    (saved_min, f"{key_prefix}_{grade}_min"),
+                    (saved_max, f"{key_prefix}_{grade}_max"),
+                    (saved_pts, f"{key_prefix}_{grade}_pts"),
+                ]:
+                    e = ctk.CTkEntry(row, width=80, height=28,
+                                     fg_color=SURFACE, border_color=BORDER,
+                                     font=("", 11))
+                    e.insert(0, val)
+                    e.pack(side="left", padx=(10, 0))
+                    # Save on focus out
+                    e.bind("<FocusOut>",
+                           lambda ev, sk=setting_key, ew=e: (
+                               set_setting(sk, ew.get().strip())))
+                    e.bind("<Return>",
+                           lambda ev, sk=setting_key, ew=e: (
+                               set_setting(sk, ew.get().strip())))
+
+            muted(sf, "Changes are saved automatically when you click away from each field."
+                  ).pack(anchor="w", pady=(8, 0))
+
+        # Reset to defaults button
+        btn_row = ctk.CTkFrame(scroll, fg_color="transparent")
+        btn_row.pack(fill="x", pady=16)
+        ghost_btn(btn_row, "Reset to defaults",
+                  command=self._reset_grading, width=150).pack(side="right")
+
+    def _reset_grading(self):
+        for grade, min_s, max_s, pts in KCSE_DEFAULT:
+            set_setting(f"kcse_{grade}_min", str(min_s))
+            set_setting(f"kcse_{grade}_max", str(max_s))
+            set_setting(f"kcse_{grade}_pts", str(pts))
+        for grade, min_s, max_s, pts in CBE_DEFAULT:
+            set_setting(f"cbe_{grade}_min", str(min_s))
+            set_setting(f"cbe_{grade}_max", str(max_s))
+            set_setting(f"cbe_{grade}_pts", str(pts))
+        # Rebuild grading tab
+        self._frames["grading"].destroy()
+        self._frames["grading"] = ctk.CTkFrame(self, fg_color="transparent")
+        self._build_grading(self._frames["grading"])
+        self._switch_tab("grading")
 
     def _section(self, parent, title):
         c = card(parent)
@@ -318,3 +408,100 @@ class ReportsPage(ctk.CTkFrame):
         ctk.CTkLabel(hdr, text=title, font=("", 13, "bold"),
                      text_color=ACCENT).pack(anchor="w", padx=16, pady=10)
         return c
+
+
+# ── Report preview dialog ─────────────────────────────────────
+class ReportPreviewDialog(ctk.CTkToplevel):
+    def __init__(self, parent, pdf_path, class_label, asmt_name, count):
+        super().__init__(parent)
+        self.title(f"Report cards — {class_label}")
+        self.geometry("500x320")
+        self.resizable(False, False)
+        self.grab_set()
+        self._pdf_path  = pdf_path
+        self._class_label = class_label
+        self._asmt_name = asmt_name
+        self._count     = count
+        self._build()
+
+    def _build(self):
+        f = ctk.CTkFrame(self, fg_color=BG)
+        f.pack(fill="both", expand=True, padx=28, pady=28)
+
+        # Success header
+        ctk.CTkLabel(f, text="✓", font=("", 36, "bold"),
+                     text_color=SUCCESS).pack(pady=(0, 4))
+        heading(f, f"{self._count} report card(s) generated",
+                size=16).pack()
+        muted(f, f"{self._class_label}  ·  {self._asmt_name}"
+              ).pack(pady=(2, 20))
+
+        divider(f).pack(fill="x", pady=(0, 16))
+
+        muted(f, "What would you like to do?").pack(anchor="w", pady=(0, 10))
+
+        # Action buttons
+        actions = ctk.CTkFrame(f, fg_color="transparent")
+        actions.pack(fill="x")
+
+        # Preview (open PDF)
+        primary_btn(actions, "Preview PDF",
+                    command=self._preview, width=130).pack(
+            side="left", padx=(0, 8))
+
+        # Save as PDF
+        ghost_btn(actions, "Save PDF",
+                  command=self._save_pdf, width=110).pack(
+            side="left", padx=(0, 8))
+
+        # Save as Excel
+        ghost_btn(actions, "Save Excel",
+                  command=self._save_excel, width=110).pack(
+            side="left", padx=(0, 8))
+
+        # Print
+        ghost_btn(actions, "Print",
+                  command=self._print, width=90).pack(side="left")
+
+        self._status = ctk.CTkLabel(
+            f, text="", font=("", 11), text_color=TEXT_MUTED)
+        self._status.pack(anchor="w", pady=(12, 0))
+
+    def _preview(self):
+        if os.name == "nt":
+            os.startfile(self._pdf_path)
+        else:
+            os.system(f'open "{self._pdf_path}"')
+
+    def _save_pdf(self):
+        safe = self._class_label.replace(" ", "_")
+        path = filedialog.asksaveasfilename(
+            defaultextension=".pdf",
+            filetypes=[("PDF", "*.pdf")],
+            initialfile=f"reports_{safe}.pdf",
+            title="Save PDF as",
+        )
+        if path:
+            import shutil
+            shutil.copy2(self._pdf_path, path)
+            self._status.configure(
+                text=f"✓ Saved: {os.path.basename(path)}", text_color=SUCCESS)
+
+    def _save_excel(self):
+        self._status.configure(text="Excel export coming soon.", text_color=TEXT_MUTED)
+
+    def _print(self):
+        self._status.configure(text="Sending to printer...", text_color=TEXT_MUTED)
+        self.update()
+        if os.name == "nt":
+            os.startfile(self._pdf_path, "print")
+        else:
+            ret = os.system(f'lpr "{self._pdf_path}"')
+            if ret == 0:
+                self._status.configure(text="✓ Sent to printer.", text_color=SUCCESS)
+            else:
+                # Fallback — open for manual print
+                os.system(f'open "{self._pdf_path}"')
+                self._status.configure(
+                    text="Opened for printing. Use File → Print.",
+                    text_color=TEXT_MUTED)
