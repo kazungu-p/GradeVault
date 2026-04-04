@@ -126,16 +126,24 @@ class ReportsPage(ctk.CTkFrame):
             f = ctk.CTkFrame(self, fg_color="transparent")
             self._frames[key] = f
 
+        # Build all tabs upfront — prevents flash on switch
         self._build_generate(self._frames["generate"])
         self._build_comments(self._frames["comments"])
         self._build_grading(self._frames["grading"])
+
+        # Place all frames in same grid position, switch visibility
+        for f in self._frames.values():
+            f.place(relx=0, rely=0, relwidth=1, relheight=1)
         self._switch_tab("generate")
 
     def _switch_tab(self, key):
         self._active_tab = key
+        # Raise selected frame to top — no rebuild, no flash
         for k, f in self._frames.items():
-            f.pack_forget()
-        self._frames[key].pack(fill="both", expand=True)
+            if k == key:
+                f.lift()
+            else:
+                f.lower()
         for k, btn in self._tab_btns.items():
             btn.configure(
                 fg_color=ACCENT if k == key else "transparent",
@@ -454,11 +462,6 @@ class ReportPreviewDialog(ctk.CTkToplevel):
                   command=self._save_pdf, width=110).pack(
             side="left", padx=(0, 8))
 
-        # Save as Excel
-        ghost_btn(actions, "Save Excel",
-                  command=self._save_excel, width=110).pack(
-            side="left", padx=(0, 8))
-
         # Print
         ghost_btn(actions, "Print",
                   command=self._print, width=90).pack(side="left")
@@ -487,21 +490,150 @@ class ReportPreviewDialog(ctk.CTkToplevel):
             self._status.configure(
                 text=f"✓ Saved: {os.path.basename(path)}", text_color=SUCCESS)
 
-    def _save_excel(self):
-        self._status.configure(text="Excel export coming soon.", text_color=TEXT_MUTED)
-
     def _print(self):
-        self._status.configure(text="Sending to printer...", text_color=TEXT_MUTED)
+        PrintDialog(self, self._pdf_path, self._status)
+
+
+# ── Printer selection dialog ──────────────────────────────────
+class PrintDialog(ctk.CTkToplevel):
+    def __init__(self, parent, pdf_path, status_label):
+        super().__init__(parent)
+        self.title("Print")
+        self.geometry("420x300")
+        self.resizable(False, False)
+        self.grab_set()
+        self._pdf_path    = pdf_path
+        self._status_lbl  = status_label
+        self._printers    = []
+        self._build()
+        self._load_printers()
+
+    def _build(self):
+        f = ctk.CTkFrame(self, fg_color=BG)
+        f.pack(fill="both", expand=True, padx=28, pady=28)
+
+        heading(f, "Select printer", size=15).pack(anchor="w", pady=(0, 12))
+
+        self._printer_list = ctk.CTkScrollableFrame(
+            f, fg_color=SURFACE, border_color=BORDER,
+            border_width=1, corner_radius=8, height=140)
+        self._printer_list.pack(fill="x", pady=(0, 12))
+
+        self._loading = muted(self._printer_list, "Detecting printers...")
+        self._loading.pack(pady=12)
+
+        self._msg = ctk.CTkLabel(f, text="", font=("", 11),
+                                  text_color=TEXT_MUTED)
+        self._msg.pack(anchor="w", pady=(0, 8))
+
+        btn_row = ctk.CTkFrame(f, fg_color="transparent")
+        btn_row.pack(fill="x")
+        ghost_btn(btn_row, "Cancel", command=self.destroy,
+                  width=100).pack(side="left")
+        self._print_btn = primary_btn(
+            btn_row, "Print", command=self._do_print, width=100)
+        self._print_btn.pack(side="right")
+        self._print_btn.configure(state="disabled")
+        self._selected_printer = None
+
+    def _load_printers(self):
+        import subprocess, platform
+        printers = []
+
+        try:
+            if platform.system() == "Darwin":  # macOS
+                result = subprocess.run(
+                    ["lpstat", "-a"],
+                    capture_output=True, text=True, timeout=5)
+                for line in result.stdout.splitlines():
+                    name = line.split()[0]
+                    if name:
+                        printers.append(name)
+            elif platform.system() == "Windows":
+                result = subprocess.run(
+                    ["wmic", "printer", "get", "name"],
+                    capture_output=True, text=True, timeout=5)
+                for line in result.stdout.splitlines()[1:]:
+                    name = line.strip()
+                    if name:
+                        printers.append(name)
+            else:  # Linux
+                result = subprocess.run(
+                    ["lpstat", "-a"],
+                    capture_output=True, text=True, timeout=5)
+                for line in result.stdout.splitlines():
+                    name = line.split()[0]
+                    if name:
+                        printers.append(name)
+        except Exception:
+            printers = []
+
+        self._printers = printers
+        self._loading.pack_forget()
+
+        if not printers:
+            ctk.CTkLabel(
+                self._printer_list,
+                text="No printers found.\nConnect a printer and try again.",
+                font=("", 12), text_color=TEXT_MUTED,
+                justify="center").pack(pady=16)
+            self._msg.configure(
+                text="Tip: You can also Preview PDF and print from there.",
+                text_color=TEXT_MUTED)
+            return
+
+        self._printer_vars = []
+        selected_var = ctk.StringVar(value="")
+
+        for p in printers:
+            var = ctk.BooleanVar(value=False)
+            self._printer_vars.append((p, var))
+            row = ctk.CTkFrame(self._printer_list, fg_color="transparent")
+            row.pack(fill="x", pady=2)
+            ctk.CTkRadioButton(
+                row, text=p,
+                variable=selected_var, value=p,
+                font=("", 12), text_color=TEXT,
+                fg_color=ACCENT, hover_color=ACCENT_DARK,
+                command=lambda pn=p: self._select_printer(pn),
+            ).pack(anchor="w", padx=8)
+
+        # Auto-select first
+        self._select_printer(printers[0])
+
+    def _select_printer(self, name):
+        self._selected_printer = name
+        self._print_btn.configure(state="normal")
+
+    def _do_print(self):
+        if not self._selected_printer:
+            return
+        import subprocess, platform
+        self._msg.configure(text="Sending to printer...",
+                            text_color=TEXT_MUTED)
         self.update()
-        if os.name == "nt":
-            os.startfile(self._pdf_path, "print")
-        else:
-            ret = os.system(f'lpr "{self._pdf_path}"')
-            if ret == 0:
-                self._status.configure(text="✓ Sent to printer.", text_color=SUCCESS)
+        try:
+            if platform.system() == "Windows":
+                import subprocess
+                subprocess.run(
+                    ["print", f"/D:{self._selected_printer}",
+                     self._pdf_path],
+                    shell=True, check=True)
             else:
-                # Fallback — open for manual print
-                os.system(f'open "{self._pdf_path}"')
-                self._status.configure(
-                    text="Opened for printing. Use File → Print.",
-                    text_color=TEXT_MUTED)
+                subprocess.run(
+                    ["lpr", "-P", self._selected_printer, self._pdf_path],
+                    check=True, timeout=15)
+            self._msg.configure(
+                text=f"✓ Sent to {self._selected_printer}",
+                text_color=SUCCESS)
+            try:
+                self._status_lbl.configure(
+                    text=f"✓ Printed on {self._selected_printer}",
+                    text_color=SUCCESS)
+            except Exception:
+                pass
+            self.after(1500, self.destroy)
+        except Exception as e:
+            self._msg.configure(
+                text=f"Print failed: {e}\nTry Preview PDF and print manually.",
+                text_color=DANGER)

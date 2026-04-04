@@ -309,7 +309,7 @@ class ClassForm(ctk.CTkToplevel):
     def __init__(self, parent, title, on_save, cls=None):
         super().__init__(parent)
         self.title(title)
-        self.geometry("460x420")
+        self.geometry("480x500")
         self.resizable(False, False)
         self.grab_set()
         self._on_save = on_save
