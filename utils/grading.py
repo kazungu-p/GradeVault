@@ -43,30 +43,56 @@ CBE_SCALE  = _CBE_DEFAULT
 LANGUAGE_SUBJECTS = {"english", "kiswahili", "english language",
                      "kiswahili language", "fasihi"}
 
-CBE_CLASS_PREFIXES = {"grade 7", "grade 8", "grade 9",
-                      "grade 10", "grade 11", "grade 12"}
+# Curriculum detection by class name prefix
+_ECDE_PREFIXES        = {"pp1", "pp2"}
+_LOWER_PRIMARY_PREFIX = {"grade 1", "grade 2", "grade 3"}
+_UPPER_PRIMARY_PREFIX = {"grade 4", "grade 5", "grade 6"}
+_CBC_SECONDARY_PREFIX = {"grade 7", "grade 8", "grade 9",
+                          "grade 10", "grade 11", "grade 12"}
 
 
 def detect_curriculum(class_name: str) -> str:
-    """Returns '8-4-4' or 'CBE' based on class name."""
+    """
+    Returns one of:
+      'ECDE'          — PP1, PP2
+      'Lower Primary' — Grade 1-3
+      'Upper Primary' — Grade 4-6
+      'CBC'           — Grade 7-12
+      '8-4-4'         — Form 1-4
+    """
     name = (class_name or "").lower().strip()
-    for prefix in CBE_CLASS_PREFIXES:
+    if name in _ECDE_PREFIXES:
+        return "ECDE"
+    for prefix in _LOWER_PRIMARY_PREFIX:
         if name.startswith(prefix):
-            return "CBE"
+            return "Lower Primary"
+    for prefix in _UPPER_PRIMARY_PREFIX:
+        if name.startswith(prefix):
+            return "Upper Primary"
+    for prefix in _CBC_SECONDARY_PREFIX:
+        if name.startswith(prefix):
+            return "CBC"
     return "8-4-4"
 
 
 def grade_from_percentage(percentage: float, curriculum: str) -> tuple[str, int]:
     """Returns (grade_letter, points) using saved grading scale."""
-    scale = _get_cbe_scale() if curriculum == "CBE" else _get_kcse_scale()
+    if curriculum in ("ECDE", "Lower Primary", "Upper Primary", "CBC"):
+        scale = _get_cbe_scale()
+        fallback = "BE"
+    else:
+        scale = _get_kcse_scale()
+        fallback = "E"
     for min_s, max_s, grade, points in scale:
         if min_s <= round(percentage, 1) <= max_s:
             return grade, points
-    return ("BE" if curriculum == "CBE" else "E"), 1
+    return fallback, 1
 
 
 def subject_comment(grade: str, curriculum: str) -> str:
     """Auto-comment based on grade."""
+    # CBC used for ECDE, Lower Primary, Upper Primary and CBC secondary
+    is_cbc = curriculum in ("ECDE", "Lower Primary", "Upper Primary", "CBC")
     kcse_comments = {
         "A":  "Outstanding performance. Exceptional ability demonstrated.",
         "A-": "Excellent performance. Very strong grasp of the subject.",
@@ -87,7 +113,7 @@ def subject_comment(grade: str, curriculum: str) -> str:
         "AE": "Approaches expectations. More effort needed to meet standards.",
         "BE": "Below expectations. Requires significant improvement and support.",
     }
-    comments = cbe_comments if curriculum == "CBE" else kcse_comments
+    comments = cbe_comments if is_cbc else kcse_comments
     return comments.get(grade, "")
 
 
@@ -201,7 +227,8 @@ def compute_student_result(student_id: int, assessment_id: int,
     if curriculum == "8-4-4":
         selected = select_best_7(subject_marks)
     else:
-        selected = subject_marks  # CBE uses all subjects
+        # CBC/ECDE/Primary — use all subjects
+        selected = subject_marks
 
     if selected:
         mean  = round(sum(s["percentage"] for s in selected) / len(selected), 1)
@@ -210,14 +237,17 @@ def compute_student_result(student_id: int, assessment_id: int,
         mean, grade, points = 0, "—", 0
 
     return {
-        "subjects":   selected,        # only selected 7 shown on report
-        "all_subjects": subject_marks, # kept for reference
-        "selected":   selected,
-        "mean":       mean,
-        "grade":      grade,
-        "points":     points,
-        "band":       performance_band(mean),
-        "curriculum": curriculum,
+        "subjects":     selected,
+        "all_subjects": subject_marks,
+        "selected":     selected,
+        "mean":         mean,
+        "grade":        grade,
+        "points":       points,
+        "band":         performance_band(mean),
+        "curriculum":   curriculum,
+        "is_844":       curriculum == "8-4-4",
+        "is_cbc":       curriculum in ("ECDE", "Lower Primary",
+                                        "Upper Primary", "CBC"),
     }
 
 

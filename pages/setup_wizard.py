@@ -8,38 +8,80 @@ from datetime import date
 
 # ── All possible classes ──────────────────────────────────────
 ALL_CLASSES = [
-    ("8-4-4",  "Form 1"),
-    ("8-4-4",  "Form 2"),
-    ("8-4-4",  "Form 3"),
-    ("8-4-4",  "Form 4"),
-    ("CBE Jr", "Grade 7"),
-    ("CBE Jr", "Grade 8"),
-    ("CBE Jr", "Grade 9"),
-    ("CBE Sr", "Grade 10"),
-    ("CBE Sr", "Grade 11"),
-    ("CBE Sr", "Grade 12"),
+    ("ECDE",        "PP1"),
+    ("ECDE",        "PP2"),
+    ("Lower Primary (CBC)", "Grade 1"),
+    ("Lower Primary (CBC)", "Grade 2"),
+    ("Lower Primary (CBC)", "Grade 3"),
+    ("Upper Primary (CBC)", "Grade 4"),
+    ("Upper Primary (CBC)", "Grade 5"),
+    ("Upper Primary (CBC)", "Grade 6"),
+    ("Junior Secondary (CBC)", "Grade 7"),
+    ("Junior Secondary (CBC)", "Grade 8"),
+    ("Junior Secondary (CBC)", "Grade 9"),
+    ("Senior Secondary (CBC)", "Grade 10"),
+    ("Senior Secondary (CBC)", "Grade 11"),
+    ("Senior Secondary (CBC)", "Grade 12"),
+    ("Secondary (8-4-4)", "Form 1"),
+    ("Secondary (8-4-4)", "Form 2"),
+    ("Secondary (8-4-4)", "Form 3"),
+    ("Secondary (8-4-4)", "Form 4"),
+]
+
+# ── Section display order ─────────────────────────────────────
+SECTION_ORDER = [
+    "ECDE",
+    "Lower Primary (CBC)",
+    "Upper Primary (CBC)",
+    "Junior Secondary (CBC)",
+    "Senior Secondary (CBC)",
+    "Secondary (8-4-4)",
 ]
 
 # ── Subject presets per curriculum ───────────────────────────
 SUBJECT_PRESETS = {
-    "8-4-4": [
-        "Mathematics", "English", "Kiswahili", "Biology",
-        "Chemistry", "Physics", "History & Government",
-        "Geography", "Christian Religious Education",
-        "Islamic Religious Education", "Home Science",
-        "Agriculture", "Business Studies", "Computer Studies",
-        "Art & Design", "Music", "French", "German", "Arabic",
-        "Woodwork", "Metalwork", "Building & Construction",
+    "ECDE": [
+        "Language Activities",
+        "Mathematical Activities",
+        "Environmental Activities",
+        "Psychomotor & Creative Activities",
+        "Religious Education Activities",
     ],
-    "CBE Jr": [
-        "Mathematics", "English", "Kiswahili", "Integrated Science",
-        "Social Studies", "Religious Education", "Business Studies",
+    "Lower Primary (CBC)": [
+        "Literacy",
+        "Kiswahili Language Activities",
+        "Mathematics",
+        "Environmental Activities",
+        "Christian Religious Education",
+        "Islamic Religious Education",
+        "Hindu Religious Education",
+        "Creative Arts",
+        "Physical & Health Education",
+    ],
+    "Upper Primary (CBC)": [
+        "English",
+        "Kiswahili",
+        "Mathematics",
+        "Integrated Science",
+        "Social Studies",
+        "Christian Religious Education",
+        "Islamic Religious Education",
+        "Creative Arts & Sports",
+        "Agriculture",
+        "Home Science",
+        "ICT",
+    ],
+    "Junior Secondary (CBC)": [
+        "Mathematics", "English", "Kiswahili",
+        "Integrated Science", "Social Studies",
+        "Religious Education", "Business Studies",
         "Agriculture", "Home Science", "Visual Arts",
-        "Performing Arts", "Physical Education", "Health Education",
-        "ICT", "Arabic", "French", "German", "Fasihi",
+        "Performing Arts", "Physical Education",
+        "Health Education", "ICT", "Arabic",
+        "French", "German", "Fasihi",
         "Literature in English",
     ],
-    "CBE Sr": [
+    "Senior Secondary (CBC)": [
         "Mathematics", "English", "Kiswahili",
         "Biology", "Chemistry", "Physics",
         "History & Government", "Geography",
@@ -49,6 +91,17 @@ SUBJECT_PRESETS = {
         "French", "German", "Arabic",
         "Visual Arts", "Performing Arts",
         "Physical Education", "Agriculture", "Home Science",
+    ],
+    "Secondary (8-4-4)": [
+        "Mathematics", "English", "Kiswahili", "Biology",
+        "Chemistry", "Physics", "History & Government",
+        "Geography", "Christian Religious Education",
+        "Islamic Religious Education", "Hindu Religious Education",
+        "Home Science", "Agriculture", "Business Studies",
+        "Computer Studies", "Art & Design", "Music",
+        "French", "German", "Arabic",
+        "Woodwork", "Metalwork", "Building & Construction",
+        "Power Mechanics", "Electricity",
     ],
 }
 

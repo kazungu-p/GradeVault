@@ -22,6 +22,14 @@ TEXT_DARK  = colors.HexColor("#111827")
 TEXT_MUTED = colors.HexColor("#6B7280")
 SELECTED   = colors.HexColor("#FEF9C3")   # highlight best-7 subjects
 
+# Descriptive labels for CBC/ECDE primary grades
+CBC_DESCRIPTIVE = {
+    "EE": "Exceeds Expectations",
+    "ME": "Meets Expectations",
+    "AE": "Approaches Expectations",
+    "BE": "Below Expectations",
+}
+
 
 def _styles():
     return {
@@ -117,8 +125,13 @@ def _marks_table(result, s):
     faded = ParagraphStyle("faded", fontSize=8, fontName="Helvetica",
                             textColor=colors.HexColor("#9CA3AF"))
 
-    header = ["Subject", "Score", "Out of", "%", "Grade", "Comment"]
-    col_w  = [4.8*cm, 1.5*cm, 1.5*cm, 1.5*cm, 1.4*cm, 5.5*cm]
+    is_primary = curriculum in ("ECDE", "Lower Primary", "Upper Primary")
+    if is_primary:
+        header = ["Subject", "Score", "Out of", "%", "Grade", "Comment"]
+        col_w  = [4.0*cm, 1.4*cm, 1.4*cm, 1.4*cm, 3.8*cm, 4.2*cm]
+    else:
+        header = ["Subject", "Score", "Out of", "%", "Grade", "Comment"]
+        col_w  = [4.8*cm, 1.5*cm, 1.5*cm, 1.5*cm, 1.4*cm, 5.5*cm]
 
     rows   = [header]
 
@@ -135,12 +148,16 @@ def _marks_table(result, s):
         else:
             subj_cell = sub["subject_name"]
 
+        grade_display = (
+            CBC_DESCRIPTIVE.get(sub["grade"], sub["grade"])
+            if is_primary else sub["grade"]
+        )
         rows.append([
             subj_cell,
             f"{sub['raw_score']:.0f}" if sub["raw_score"] is not None else "—",
             f"{sub['out_of']:.0f}",
             f"{sub['percentage']:.1f}%",
-            sub["grade"],
+            grade_display,
             comment,
         ])
 
@@ -155,11 +172,19 @@ def _marks_table(result, s):
             ])
 
     # Aggregate row
-    agg_label = "Mean (Best 7)" if not is_cbe else "Mean (All subjects)"
+    if result.get("is_844"):
+        agg_label = "Mean (Best 7)"
+    elif is_primary:
+        agg_label = "Overall Mean"
+    else:
+        agg_label = "Mean (All subjects)"
+
+    agg_grade = (CBC_DESCRIPTIVE.get(result["grade"], result["grade"])
+                 if result.get("is_cbc") else result["grade"])
     rows.append([
         Paragraph(f"<b>{agg_label}</b>", s["normal"]),
         "", "", f"{result['mean']:.1f}%",
-        result["grade"], ""
+        agg_grade, ""
     ])
 
     t = Table(rows, colWidths=col_w, repeatRows=1)
@@ -267,9 +292,14 @@ def generate_report_cards(output_path: str,
         # Marks table
         card_elements.append(_marks_table(result, s))
 
-        if result["curriculum"] == "8-4-4":
+        if result.get("is_844"):
             card_elements.append(Paragraph(
                 "* Subjects marked with * are included in the mean grade calculation (Best 7 rule).",
+                s["small"]))
+        elif result.get("is_cbc"):
+            card_elements.append(Paragraph(
+                "EE = Exceeds Expectations  |  ME = Meets Expectations  |  "
+                "AE = Approaches Expectations  |  BE = Below Expectations",
                 s["small"]))
 
         card_elements.append(Spacer(1, 0.4*cm))
