@@ -285,22 +285,25 @@ class SetupWizard(ctk.CTkToplevel):
         ).pack(anchor="w", pady=(0, 16))
 
         self._class_vars = {}
-        sections = [
-            ("8-4-4  (Senior Secondary)",
-             [c for c in ALL_CLASSES if c[0] == "8-4-4"]),
-            ("CBE Junior Secondary (Grade 7–9)",
-             [c for c in ALL_CLASSES if c[0] == "CBE Jr"]),
-            ("CBE Senior Secondary (Grade 10–12)",
-             [c for c in ALL_CLASSES if c[0] == "CBE Sr"]),
-        ]
 
-        for section_title, classes in sections:
+        # Build sections from SECTION_ORDER
+        sections = {}
+        for curriculum, cls_name in ALL_CLASSES:
+            sections.setdefault(curriculum, []).append(cls_name)
+
+        selected_keys = {f"{c[0]}|{c[1]}" for c in self._selected_classes}
+
+        for section_title in SECTION_ORDER:
+            class_names = sections.get(section_title, [])
+            if not class_names:
+                continue
+
             sec = ctk.CTkFrame(self._content,
                                fg_color=SURFACE,
                                border_color=BORDER,
                                border_width=1,
                                corner_radius=8)
-            sec.pack(fill="x", pady=(0, 12))
+            sec.pack(fill="x", pady=(0, 10))
 
             ctk.CTkLabel(sec, text=section_title,
                          font=("", 12, "bold"),
@@ -308,16 +311,11 @@ class SetupWizard(ctk.CTkToplevel):
                 anchor="w", padx=14, pady=(10, 6))
 
             row = ctk.CTkFrame(sec, fg_color="transparent")
-            row.pack(fill="x", padx=14, pady=(0, 10))
+            row.pack(fill="x", padx=14, pady=(0, 12))
 
-            for i, (curr, cls_name) in enumerate(classes):
-                key = f"{curr}|{cls_name}"
-                var = ctk.BooleanVar(
-                    value=key in [
-                        f"{c[0]}|{c[1]}"
-                        for c in self._selected_classes
-                    ]
-                )
+            for i, cls_name in enumerate(class_names):
+                key = f"{section_title}|{cls_name}"
+                var = ctk.BooleanVar(value=key in selected_keys)
                 self._class_vars[key] = var
                 ctk.CTkCheckBox(
                     row, text=cls_name,
