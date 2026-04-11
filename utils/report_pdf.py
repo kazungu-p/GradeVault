@@ -107,25 +107,52 @@ def _student_header_table(result, class_label, term, s):
 
 
 def _marks_table(result, s):
-    curriculum = result["curriculum"]
-    is_cbe     = curriculum == "CBE"
-    subjects   = result["subjects"]  # already filtered to best 7
+    curriculum    = result["curriculum"]
+    is_cbe        = curriculum == "CBE"
+    all_subjects  = result.get("all_subjects", result["subjects"])
+    selected_names = {sub["subject_name"] for sub in result["selected"]
+                      if not sub.get("is_padding")}
+
+    # Faded style for the asterisk on selected subjects
+    faded = ParagraphStyle("faded", fontSize=8, fontName="Helvetica",
+                            textColor=colors.HexColor("#9CA3AF"))
 
     header = ["Subject", "Score", "Out of", "%", "Grade", "Comment"]
-    col_w  = [4.5*cm, 1.5*cm, 1.5*cm, 1.5*cm, 1.4*cm, 5.8*cm]
+    col_w  = [4.8*cm, 1.5*cm, 1.5*cm, 1.5*cm, 1.4*cm, 5.5*cm]
 
-    rows = [header]
-    for sub in subjects:
-        is_pad = sub.get("is_padding", False)
-        comment = Paragraph(sub["comment"], s["comment"])
+    rows   = [header]
+
+    for sub in all_subjects:
+        is_selected = sub["subject_name"] in selected_names
+        comment     = Paragraph(sub["comment"], s["comment"])
+
+        # Subject name with faded * for selected
+        if is_selected:
+            subj_cell = Paragraph(
+                f"{sub['subject_name']} "
+                f"<font color='#9CA3AF'>*</font>",
+                s["normal"])
+        else:
+            subj_cell = sub["subject_name"]
+
         rows.append([
-            sub["subject_name"],
-            "—" if is_pad else (f"{sub['raw_score']:.0f}" if sub["raw_score"] is not None else "—"),
-            "—" if is_pad else f"{sub['out_of']:.0f}",
-            "0.0%" if is_pad else f"{sub['percentage']:.1f}%",
+            subj_cell,
+            f"{sub['raw_score']:.0f}" if sub["raw_score"] is not None else "—",
+            f"{sub['out_of']:.0f}",
+            f"{sub['percentage']:.1f}%",
             sub["grade"],
             comment,
         ])
+
+    # Padding rows if fewer than 7 selected
+    selected_count = len([s for s in result["selected"] if not s.get("is_padding")])
+    for pad in result["selected"]:
+        if pad.get("is_padding"):
+            rows.append([
+                Paragraph(f"{pad['subject_name']} "
+                          f"<font color='#9CA3AF'>*</font>", s["normal"]),
+                "—", "—", "0.0%", pad["grade"], Paragraph(pad["comment"], s["comment"])
+            ])
 
     # Aggregate row
     agg_label = "Mean (Best 7)" if not is_cbe else "Mean (All subjects)"
@@ -150,7 +177,7 @@ def _marks_table(result, s):
         ("BACKGROUND",    (0, -1), (-1, -1), HEADER_BG),
         ("FONTNAME",      (0, -1), (-1, -1), "Helvetica-Bold"),
     ]
-    for i in range(1, len(rows)-1):
+    for i in range(1, len(rows) - 1):
         if i % 2 == 0:
             style.append(("BACKGROUND", (0, i), (-1, i), ALT_ROW))
 
@@ -242,7 +269,7 @@ def generate_report_cards(output_path: str,
 
         if result["curriculum"] == "8-4-4":
             card_elements.append(Paragraph(
-                "Showing best 7 subjects: Mathematics + best language + best 5 remaining.",
+                "* Subjects marked with * are included in the mean grade calculation (Best 7 rule).",
                 s["small"]))
 
         card_elements.append(Spacer(1, 0.4*cm))

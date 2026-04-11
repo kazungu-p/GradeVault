@@ -7,6 +7,7 @@ from pages.users import UsersPage
 from pages.classes import ClassesPage
 from pages.marks import MarksPage
 from pages.reports import ReportsPage
+from pages.analytics import AnalyticsPage
 from pages.settings import SettingsPage
 from pages.setup_wizard import SetupWizard
 from pages.splash import SplashScreen
@@ -252,6 +253,8 @@ class App(ctk.CTk):
             MarksPage(self._content_frame)
         elif key == "reports":
             ReportsPage(self._content_frame)
+        elif key == "analytics":
+            AnalyticsPage(self._content_frame)
         elif key == "settings":
             SettingsPage(self._content_frame)
         else:
