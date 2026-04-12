@@ -52,9 +52,9 @@ class BackupPage(ctk.CTkFrame):
             c.grid(row=0, column=col,
                    padx=(0, 10) if col < 3 else 0, sticky="ew")
             inner = ctk.CTkFrame(c, fg_color="transparent")
-            inner.pack(padx=14, pady=10)
-            muted(inner, lbl, size=11).pack(anchor="w")
-            label(inner, val, size=20, weight="bold").pack(anchor="w")
+            inner.pack(padx=14, pady=(20, 16), fill="both", expand=True)
+            muted(inner, lbl, size=11).pack(anchor="center")
+            label(inner, val, size=22, weight="bold").pack(anchor="center")
 
         muted(f, f"Location: {info.get('path', '—')}"
               ).pack(anchor="w", pady=(10, 0))

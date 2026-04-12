@@ -37,10 +37,11 @@ NAV_ITEMS = [
     ("students",  "Students",    "👥"),
     ("users",     "Users",       "👤"),
     ("classes",   "Classes",     "🏫"),
-    ("settings",  "Settings",    "⚙"),
     ("marks",     "Marks entry", "✏"),
     ("reports",   "Reports",     "▦"),
     ("analytics", "Analytics",   "▲"),
+    ("settings",  "Settings",    "⚙"),
+    ("backup",    "Backup",      "↓"),
 ]
 
 
