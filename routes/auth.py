@@ -45,3 +45,20 @@ def logout() -> None:
             (user["id"], "LOGOUT", f"User {user['username']} logged out"),
         )
     Session.clear()
+
+
+def change_password(user_id: int, current_pw: str,
+                    new_pw: str) -> tuple[bool, str]:
+    import bcrypt
+    from db.connection import query_one, execute
+    user = query_one("SELECT password_hash FROM users WHERE id=?",
+                     (user_id,))
+    if not user:
+        return False, "User not found."
+    if not bcrypt.checkpw(current_pw.encode(),
+                           user["password_hash"].encode()):
+        return False, "Current password is incorrect."
+    new_hash = bcrypt.hashpw(new_pw.encode(), bcrypt.gensalt()).decode()
+    execute("UPDATE users SET password_hash=? WHERE id=?",
+            (new_hash, user_id))
+    return True, "Password changed."

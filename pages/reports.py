@@ -377,12 +377,13 @@ class ReportsPage(ctk.CTkFrame):
                     e.insert(0, val)
                     e.pack(side="left", padx=(10, 0))
                     # Save on focus out
-                    e.bind("<FocusOut>",
-                           lambda ev, sk=setting_key, ew=e: (
-                               set_setting(sk, ew.get().strip())))
-                    e.bind("<Return>",
-                           lambda ev, sk=setting_key, ew=e: (
-                               set_setting(sk, ew.get().strip())))
+                    def _make_saver(sk, ew):
+                        def _save(ev=None):
+                            set_setting(sk, ew.get().strip())
+                        return _save
+                    _sv = _make_saver(setting_key, e)
+                    e.bind("<FocusOut>", _sv)
+                    e.bind("<Return>",   _sv)
 
             muted(sf, "Changes are saved automatically when you click away from each field."
                   ).pack(anchor="w", pady=(8, 0))

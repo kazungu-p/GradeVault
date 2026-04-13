@@ -359,7 +359,7 @@ class StudentForm(ctk.CTkToplevel):
     def __init__(self, parent, title, classes, on_save, student=None):
         super().__init__(parent)
         self.title(title)
-        self.geometry("460x640")
+        self.geometry("480x700")
         self.resizable(False, False)
         self.grab_set()
         self._classes = classes
@@ -370,8 +370,11 @@ class StudentForm(ctk.CTkToplevel):
             self._populate(student)
 
     def _build(self):
-        f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=36, pady=32)
+        outer = ctk.CTkFrame(self, fg_color=BG)
+        outer.pack(fill="both", expand=True)
+
+        f = ctk.CTkScrollableFrame(outer, fg_color=BG, corner_radius=0)
+        f.pack(fill="both", expand=True, padx=36, pady=(24, 0))
 
         heading(f, self.title()).pack(anchor="w", pady=(0, 16))
 
@@ -454,14 +457,18 @@ class StudentForm(ctk.CTkToplevel):
 
         self._error = ctk.CTkLabel(f, text="",
                                     text_color=DANGER, font=("", 12))
-        self._error.pack(anchor="w")
+        self._error.pack(anchor="w", pady=(8, 0))
 
-        btn_row = ctk.CTkFrame(f, fg_color="transparent")
-        btn_row.pack(fill="x", pady=(12, 0))
+        # Button row pinned to bottom outside scroll
+        btn_row = ctk.CTkFrame(outer, fg_color=SURFACE,
+                               border_color=BORDER, border_width=1,
+                               corner_radius=0, height=60)
+        btn_row.pack(fill="x", side="bottom")
+        btn_row.pack_propagate(False)
         ghost_btn(btn_row, "Cancel", command=self.destroy, width=100
-                  ).pack(side="left")
+                  ).pack(side="left", padx=20, pady=12)
         primary_btn(btn_row, "Save", command=self._submit, width=100
-                    ).pack(side="right")
+                    ).pack(side="right", padx=20, pady=12)
 
     def _populate(self, s):
         self._name.insert(0, s["full_name"])

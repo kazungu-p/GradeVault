@@ -25,10 +25,15 @@ class CommunicationsPage(ctk.CTkFrame):
         tabs = ctk.CTkFrame(self, fg_color="transparent")
         tabs.pack(fill="x", pady=(0, 14))
         self._tab_btns = {}
-        for key, lbl in [("sms",      "Bulk SMS"),
-                          ("contacts", "Parent contacts"),
-                          ("log",      "SMS log"),
-                          ("settings", "SMS settings")]:
+        from utils.session import Session as _Sess
+        _user = _Sess.get()
+        _is_admin = _user and _user.get("role") == "admin"
+        _tabs = [("sms",      "Bulk SMS"),
+                 ("contacts", "Parent contacts"),
+                 ("log",      "SMS log")]
+        if _is_admin:
+            _tabs.append(("settings", "SMS settings"))
+        for key, lbl in _tabs:
             btn = ctk.CTkButton(
                 tabs, text=lbl, height=30,
                 fg_color=ACCENT if key == "sms" else "transparent",
@@ -483,9 +488,9 @@ class CommunicationsPage(ctk.CTkFrame):
 
         thead = ctk.CTkFrame(tcard, fg_color="#F3F4F6", corner_radius=0)
         thead.pack(fill="x", padx=1, pady=(1, 0))
-        for txt, w in [("Recipient", 160), ("Phone", 130),
-                        ("Status", 90), ("Cost", 80),
-                        ("Sent at", 150), ("Message", 250)]:
+        for txt, w in [("Recipient", 150), ("Phone", 130),
+                        ("Status", 220), ("Cost", 70),
+                        ("Sent at", 150)]:
             ctk.CTkLabel(thead, text=txt, font=("", 11, "bold"),
                          text_color=TEXT_MUTED, width=w,
                          anchor="w").pack(
@@ -511,14 +516,17 @@ class CommunicationsPage(ctk.CTkFrame):
             row.pack(fill="x")
             row.pack_propagate(False)
             color = SUCCESS if r["status"] == "Success" else DANGER
+            # Truncate long status/error messages
+            status_txt = r["status"]
+            if len(status_txt) > 35:
+                status_txt = status_txt[:35] + "…"
+
             for txt, w, c in [
-                (r["recipient"], 160, TEXT),
-                (r["phone"],     130, TEXT_MUTED),
-                (r["status"],     90, color),
-                (r.get("cost","—"), 80, TEXT_MUTED),
+                (r["recipient"],   150, TEXT),
+                (r["phone"],       130, TEXT_MUTED),
+                (status_txt,       220, color),
+                (r.get("cost","—"), 70, TEXT_MUTED),
                 (r["sent_at"][:16], 150, TEXT_MUTED),
-                (r["message"][:40]+"…" if len(r["message"])>40
-                 else r["message"], 250, TEXT),
             ]:
                 ctk.CTkLabel(row, text=str(txt), font=("", 11),
                              text_color=c, width=w,

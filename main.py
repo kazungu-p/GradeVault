@@ -183,6 +183,14 @@ class App(ctk.CTk):
         label(info, user["fullName"], size=12, weight="bold").pack(anchor="w")
         muted(info, user["role"].title(), size=11).pack(anchor="w")
 
+        ctk.CTkButton(footer, text="Change password",
+                      height=28, fg_color="transparent",
+                      text_color=TEXT_MUTED, hover_color=BG,
+                      corner_radius=8, border_color=BORDER,
+                      border_width=1, font=("", 11),
+                      command=lambda: ChangePasswordDialog(
+                          self, Session.get()["id"])
+                      ).pack(fill="x", pady=(0, 6))
         ctk.CTkButton(footer, text="Sign out", height=32,
                       fg_color="transparent", text_color=DANGER,
                       hover_color="#FEF2F2", corner_radius=8,
@@ -288,9 +296,27 @@ class App(ctk.CTk):
             pady=(8, 0))
 
     def _logout(self):
+        if self._inactivity_timer:
+            self.after_cancel(self._inactivity_timer)
+            self._inactivity_timer = None
+        try:
+            self.unbind_all("<Motion>")
+            self.unbind_all("<KeyPress>")
+            self.unbind_all("<ButtonPress>")
+        except Exception:
+            pass
         logout()
         self._shell.destroy()
         self._show_login()
+
+    def _auto_logout(self):
+        self._inactivity_timer = None
+        from tkinter import messagebox
+        # Only auto-logout if user is logged in
+        from utils.session import Session
+        if not Session.get():
+            return
+        self._logout()
 
 
 if __name__ == "__main__":
