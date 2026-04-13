@@ -296,13 +296,15 @@ class AnalyticsPage(ctk.CTkFrame):
         sec = self._section(parent, "Subject performance — ranked by mean")
         self._bar_chart(sec, rows, "subject", "mean", show_value=True)
 
+        tbl = [[str(i+1), r["subject"], f"{r['mean']:.1f}%",
+                 f"{r['min_pct']:.1f}%", f"{r['max_pct']:.1f}%",
+                 str(r["entries"])]
+                for i, r in enumerate(rows)]
         sec2 = self._section(parent, "Detail")
+        self._export_row(sec2,
+            ["#", "Subject", "Mean %", "Min %", "Max %", "Count"], tbl)
         self._data_table(sec2,
-                         ["#", "Subject", "Mean %", "Min %", "Max %", "Count"],
-                         [[str(i+1), r["subject"], f"{r['mean']:.1f}%",
-                           f"{r['min_pct']:.1f}%", f"{r['max_pct']:.1f}%",
-                           str(r["entries"])]
-                          for i, r in enumerate(rows)])
+            ["#", "Subject", "Mean %", "Min %", "Max %", "Count"], tbl)
 
     # ── Exam ranking ──────────────────────────────────────────
     def _tab_ranking(self, parent, asmt_id, class_id, asmt2_id):
@@ -335,6 +337,8 @@ class AnalyticsPage(ctk.CTkFrame):
 
         sec = self._section(parent,
                             f"Exam ranking — {len(data)} student(s)")
+        self._export_row(sec,
+            ["#", "Full name", "Adm. No.", "Class", "Mean %"], data)
         self._data_table(
             sec, ["#", "Full name", "Adm. No.", "Class", "Mean %"],
             data, highlight_top=3)
@@ -393,13 +397,12 @@ class AnalyticsPage(ctk.CTkFrame):
                           f"{prev_m:.1f}%", f"{cur_m:.1f}%",
                           f"{arrow} {abs(diff):.1f}%"])
 
+        hdrs = ["Full name", "Adm. No.", "Previous", "Current", "Change"]
         sec = self._section(
             parent,
             f"Student improvement — {len(data)} student(s)")
-        self._data_table(
-            sec,
-            ["Full name", "Adm. No.", "Previous", "Current", "Change"],
-            data, color_col=4)
+        self._export_row(sec, hdrs, data)
+        self._data_table(sec, hdrs, data, color_col=4)
 
     # ── Most improved subjects ────────────────────────────────
     def _tab_improved_subjects(self, parent, asmt_id,
@@ -453,11 +456,10 @@ class AnalyticsPage(ctk.CTkFrame):
             data.append([name, f"{prev_m:.1f}%", f"{cur_m:.1f}%",
                           f"{arrow} {abs(diff):.1f}%"])
 
+        hdrs = ["Subject", "Previous mean", "Current mean", "Change"]
         sec = self._section(parent, "Subject improvement")
-        self._data_table(
-            sec,
-            ["Subject", "Previous mean", "Current mean", "Change"],
-            data, color_col=3)
+        self._export_row(sec, hdrs, data)
+        self._data_table(sec, hdrs, data, color_col=3)
 
         sec2 = self._section(parent, "Improvement chart")
         chart_data = [{"label": r[0], "value": r[3]} for r in rows]
@@ -465,15 +467,108 @@ class AnalyticsPage(ctk.CTkFrame):
                         show_value=True)
 
     # ── Reusable widgets ──────────────────────────────────────
-    def _section(self, parent, title):
+    def _section(self, parent, title, exportable_rows=None,
+                 export_headers=None):
         c = card(parent)
         c.pack(fill="x", pady=(0, 14))
         hdr = ctk.CTkFrame(c, fg_color=ACCENT_BG, corner_radius=0)
         hdr.pack(fill="x")
         ctk.CTkLabel(hdr, text=title, font=("", 13, "bold"),
                      text_color=ACCENT).pack(
-            anchor="w", padx=16, pady=8)
+            anchor="w", padx=16, pady=8, side="left")
         return c
+
+    def _export_row(self, parent, headers, rows):
+        """Add export buttons to a section."""
+        f = ctk.CTkFrame(parent, fg_color="transparent")
+        f.pack(fill="x", padx=12, pady=(0, 6))
+        ghost_btn(f, "Export PDF",
+                  command=lambda: self._export_pdf(headers, rows),
+                  width=100).pack(side="right", padx=(6, 0))
+        ghost_btn(f, "Export Excel",
+                  command=lambda: self._export_excel(headers, rows),
+                  width=100).pack(side="right")
+
+    def _export_excel(self, headers, rows):
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill
+        from tkinter import filedialog
+        path = filedialog.asksaveasfilename(
+            defaultextension=".xlsx",
+            filetypes=[("Excel", "*.xlsx")],
+            initialfile="analytics_export.xlsx",
+            title="Save Excel as")
+        if not path:
+            return
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(headers)
+        for cell in ws[1]:
+            cell.font = Font(bold=True, color="4F46E5")
+            cell.fill = PatternFill("solid", fgColor="EEF2FF")
+        for row in rows:
+            ws.append(row)
+        for col in ws.columns:
+            ws.column_dimensions[col[0].column_letter].width = 18
+        wb.save(path)
+        import os
+        os.system(f'open "{path}"' if os.name != "nt"
+                  else f'start "" "{path}"')
+
+    def _export_pdf(self, headers, rows):
+        from tkinter import filedialog
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.styles import ParagraphStyle
+        from reportlab.lib import colors
+        from reportlab.lib.units import cm
+        from routes.settings import get_setting
+
+        path = filedialog.asksaveasfilename(
+            defaultextension=".pdf",
+            filetypes=[("PDF", "*.pdf")],
+            initialfile="analytics_export.pdf",
+            title="Save PDF as")
+        if not path:
+            return
+
+        doc = SimpleDocTemplate(path, pagesize=landscape(A4),
+                                 leftMargin=1.5*cm, rightMargin=1.5*cm,
+                                 topMargin=1.5*cm, bottomMargin=1.5*cm)
+        ACCENT_C  = colors.HexColor("#4F46E5")
+        HDR_BG    = colors.HexColor("#EEF2FF")
+        BORDER_C  = colors.HexColor("#E5E7EB")
+        ALT       = colors.HexColor("#F9FAFB")
+
+        school = get_setting("school_name", "GradeVault")
+        title_style = ParagraphStyle("t", fontSize=13,
+                                      fontName="Helvetica-Bold",
+                                      textColor=ACCENT_C)
+        story = [Paragraph(school, title_style), Spacer(1, 0.3*cm)]
+
+        table_data = [headers] + [[str(c) for c in r] for r in rows]
+        col_w = (26*cm) / len(headers)
+        t = Table(table_data, colWidths=[col_w]*len(headers),
+                  repeatRows=1)
+        style = [
+            ("BACKGROUND",    (0,0), (-1,0), HDR_BG),
+            ("TEXTCOLOR",     (0,0), (-1,0), ACCENT_C),
+            ("FONTNAME",      (0,0), (-1,0), "Helvetica-Bold"),
+            ("FONTSIZE",      (0,0), (-1,-1), 8),
+            ("TOPPADDING",    (0,0), (-1,-1), 4),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+            ("FONTNAME",      (0,1), (-1,-1), "Helvetica"),
+            ("GRID",          (0,0), (-1,-1), 0.4, BORDER_C),
+            ("ALIGN",         (0,0), (-1,-1), "LEFT"),
+        ]
+        for i in range(2, len(table_data), 2):
+            style.append(("BACKGROUND", (0,i), (-1,i), ALT))
+        t.setStyle(TableStyle(style))
+        story.append(t)
+        doc.build(story)
+        import os
+        os.system(f'open "{path}"' if os.name != "nt"
+                  else f'start "" "{path}"')
 
     def _data_table(self, parent, headers, rows,
                     highlight_top=0, color_col=None):

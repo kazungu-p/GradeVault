@@ -99,13 +99,16 @@ class UsersPage(ctk.CTkFrame):
 
             role_color = ACCENT_BG if u["role"] == "admin" else "#F0FDF4"
             role_text  = ACCENT    if u["role"] == "admin" else SUCCESS
-            badge = ctk.CTkFrame(row, fg_color=role_color,
-                                  corner_radius=6, width=70)
-            badge.pack(side="left", padx=(12, 0))
-            badge.pack_propagate(False)
+            badge_wrap = ctk.CTkFrame(row, fg_color="transparent",
+                                       width=90)
+            badge_wrap.pack(side="left", padx=(12, 0))
+            badge_wrap.pack_propagate(False)
+            badge = ctk.CTkFrame(badge_wrap, fg_color=role_color,
+                                  corner_radius=6)
+            badge.place(relx=0.5, rely=0.5, anchor="center")
             ctk.CTkLabel(badge, text=u["role"].title(),
                          font=("", 11),
-                         text_color=role_text).pack(padx=8, pady=3)
+                         text_color=role_text).pack(padx=10, pady=3)
 
             status_color = SUCCESS if u["is_active"] else DANGER
             ctk.CTkLabel(row,

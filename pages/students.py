@@ -359,7 +359,7 @@ class StudentForm(ctk.CTkToplevel):
     def __init__(self, parent, title, classes, on_save, student=None):
         super().__init__(parent)
         self.title(title)
-        self.geometry("460x500")
+        self.geometry("460x640")
         self.resizable(False, False)
         self.grab_set()
         self._classes = classes
@@ -408,6 +408,50 @@ class StudentForm(ctk.CTkToplevel):
                           dropdown_fg_color=SURFACE,
                           ).pack(anchor="w", pady=(4, 14))
 
+        # Parent/guardian contact
+        ctk.CTkFrame(f, fg_color=BORDER, height=1
+                     ).pack(fill="x", pady=(0, 12))
+        muted(f, "Parent / guardian contact (optional)").pack(anchor="w", pady=(0, 8))
+
+        muted(f, "Contact name").pack(anchor="w")
+        self._contact_name = ctk.CTkEntry(f, width=380,
+                                           fg_color=SURFACE, border_color=BORDER,
+                                           placeholder_text="e.g. Jane Mwangi")
+        self._contact_name.pack(anchor="w", pady=(4, 10))
+
+        rel_phone = ctk.CTkFrame(f, fg_color="transparent")
+        rel_phone.pack(anchor="w", fill="x")
+
+        rel_f = ctk.CTkFrame(rel_phone, fg_color="transparent")
+        rel_f.pack(side="left", padx=(0, 10))
+        muted(rel_f, "Relationship").pack(anchor="w")
+        self._contact_rel = ctk.StringVar(value="Parent")
+        ctk.CTkOptionMenu(rel_f, variable=self._contact_rel,
+                          values=["Parent", "Guardian", "Sibling", "Other"],
+                          width=180, fg_color=SURFACE,
+                          button_color=BORDER, text_color=TEXT,
+                          dropdown_fg_color=SURFACE,
+                          ).pack(anchor="w", pady=(4, 0))
+
+        phone_f = ctk.CTkFrame(rel_phone, fg_color="transparent")
+        phone_f.pack(side="left")
+        muted(phone_f, "Phone number").pack(anchor="w")
+        self._contact_phone = ctk.CTkEntry(phone_f, width=190,
+                                            fg_color=SURFACE, border_color=BORDER,
+                                            placeholder_text="07XX XXX XXX")
+        self._contact_phone.pack(anchor="w", pady=(4, 0))
+
+        # Populate existing contact if editing
+        if self._student:
+            from routes.communications import get_contacts
+            cts = get_contacts(self._student["id"])
+            if cts:
+                c = next((x for x in cts if x["is_primary"]), cts[0])
+                self._contact_name.insert(0, c["name"])
+                self._contact_phone.insert(0, c["phone"])
+                if c["relationship"] in ["Parent", "Guardian", "Sibling", "Other"]:
+                    self._contact_rel.set(c["relationship"])
+
         self._error = ctk.CTkLabel(f, text="",
                                     text_color=DANGER, font=("", 12))
         self._error.pack(anchor="w")
@@ -447,6 +491,16 @@ class StudentForm(ctk.CTkToplevel):
             data["student_id"] = self._student["id"]
         ok, msg = self._on_save(data)
         if ok:
+            # Save contact if provided
+            p_name  = self._contact_name.get().strip()
+            p_phone = self._contact_phone.get().strip()
+            if p_name and p_phone and self._student:
+                from routes.communications import add_contact, get_contacts
+                existing = get_contacts(self._student["id"])
+                if not existing:
+                    add_contact(self._student["id"], p_name,
+                                self._contact_rel.get(), p_phone,
+                                is_primary=True)
             self.destroy()
         else:
             self._error.configure(text=msg)

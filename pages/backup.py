@@ -23,13 +23,14 @@ class BackupPage(ctk.CTkFrame):
         self._build_db_info(scroll)
         self._build_backup(scroll)
         self._build_restore(scroll)
+        self._build_online_backup(scroll)
         self._build_auto_backups(scroll)
 
     # ── Current database info ─────────────────────────────────
     def _build_db_info(self, parent):
         sec = self._section(parent, "Current database")
         f   = ctk.CTkFrame(sec, fg_color="transparent")
-        f.pack(fill="x", padx=16, pady=(0, 16))
+        f.pack(fill="x", padx=16, pady=(14, 16))
 
         info = get_db_info()
         if not info:
@@ -212,6 +213,46 @@ class BackupPage(ctk.CTkFrame):
             self._restore_status.configure(
                 text=f"✗ {msg}", text_color=DANGER)
 
+    # ── Online backup ─────────────────────────────────────────
+    def _build_online_backup(self, parent):
+        sec = self._section(parent, "Online backup (Google Drive)")
+        f   = ctk.CTkFrame(sec, fg_color="transparent")
+        f.pack(fill="x", padx=16, pady=(0, 16))
+
+        muted(f,
+              "Upload a backup directly to your Google Drive.\nRequires a one-time sign-in — your data stays in your own account."
+              ).pack(anchor="w", pady=(0, 12))
+
+        btn_row = ctk.CTkFrame(f, fg_color="transparent")
+        btn_row.pack(fill="x")
+
+        primary_btn(btn_row, "Upload to Google Drive",
+                    command=self._upload_to_drive, width=200
+                    ).pack(side="left")
+
+        self._online_status = ctk.CTkLabel(
+            f, text="", font=("", 12), text_color=TEXT_MUTED,
+            wraplength=500, justify="left")
+        self._online_status.pack(anchor="w", pady=(10, 0))
+
+    def _upload_to_drive(self):
+        self._online_status.configure(
+            text="Checking dependencies…", text_color=TEXT_MUTED)
+        self.update()
+        try:
+            import importlib
+            for pkg in ("google.oauth2", "googleapiclient"):
+                if importlib.util.find_spec(pkg.split(".")[0]) is None:
+                    raise ImportError(pkg)
+        except ImportError:
+            self._online_status.configure(
+                text="Required packages not installed.\n"
+                     "Run: pip install google-auth google-auth-oauthlib "
+                     "google-auth-httplib2 google-api-python-client",
+                text_color=DANGER)
+            return
+        GoogleDriveUploadDialog(self, self._online_status)
+
     # ── Auto backups list ─────────────────────────────────────
     def _build_auto_backups(self, parent):
         sec = self._section(parent, "Recent auto-backups")
@@ -361,3 +402,138 @@ class RestoreConfirmDialog(ctk.CTkToplevel):
             corner_radius=8, font=("", 13),
             command=lambda: [self.destroy(), self._on_confirm()],
         ).pack(side="right")
+
+
+# ── Google Drive upload dialog ────────────────────────────────
+class GoogleDriveUploadDialog(ctk.CTkToplevel):
+    """
+    Handles OAuth2 sign-in and upload to Google Drive.
+    Uses google-auth + google-api-python-client.
+    Install: pip install google-auth google-auth-oauthlib
+             google-auth-httplib2 google-api-python-client
+    """
+    SCOPES     = ["https://www.googleapis.com/auth/drive.file"]
+    TOKEN_FILE = str(
+        __import__("pathlib").Path.home() / ".gradevault" / "gdrive_token.json"
+    )
+
+    def __init__(self, parent, status_label):
+        super().__init__(parent)
+        self.title("Upload to Google Drive")
+        self.geometry("480x320")
+        self.resizable(False, False)
+        self.grab_set()
+        self._status_lbl = status_label
+        self._build()
+        self.after(200, self._start_auth)
+
+    def _build(self):
+        f = ctk.CTkFrame(self, fg_color=BG)
+        f.pack(fill="both", expand=True, padx=28, pady=28)
+
+        heading(f, "Google Drive backup", size=15).pack(
+            anchor="w", pady=(0, 8))
+
+        self._info = ctk.CTkLabel(
+            f,
+            text="A browser window will open for you to sign in\n"
+                 "to your Google account. GradeVault only gets\n"
+                 "permission to upload files — nothing else.",
+            font=("", 12), text_color=TEXT_MUTED,
+            justify="left")
+        self._info.pack(anchor="w", pady=(0, 16))
+
+        self._progress = ctk.CTkLabel(
+            f, text="Waiting for sign-in…",
+            font=("", 12), text_color=TEXT_MUTED)
+        self._progress.pack(anchor="w", pady=(0, 12))
+
+        self._bar = ctk.CTkProgressBar(f, width=400, mode="indeterminate")
+        self._bar.pack(anchor="w", pady=(0, 16))
+        self._bar.start()
+
+        ghost_btn(f, "Cancel", command=self.destroy, width=100
+                  ).pack(anchor="w")
+
+    def _start_auth(self):
+        import threading
+        threading.Thread(target=self._auth_and_upload, daemon=True).start()
+
+    def _auth_and_upload(self):
+        try:
+            from google.oauth2.credentials import Credentials
+            from google_auth_oauthlib.flow import InstalledAppFlow
+            from google.auth.transport.requests import Request
+            from googleapiclient.discovery import build
+            from googleapiclient.http import MediaFileUpload
+            import json, os
+            from pathlib import Path
+
+            creds = None
+            token_path = Path(self.TOKEN_FILE)
+
+            if token_path.exists():
+                creds = Credentials.from_authorized_user_file(
+                    str(token_path), self.SCOPES)
+
+            if not creds or not creds.valid:
+                if creds and creds.expired and creds.refresh_token:
+                    creds.refresh(Request())
+                else:
+                    # Need client secrets — use a built-in app credentials
+                    # User must provide their own client_secrets.json
+                    secrets = Path.home() / ".gradevault" / "client_secrets.json"
+                    if not secrets.exists():
+                        self._set_status(
+                            "⚠ client_secrets.json not found.\n"
+                            "Place your Google OAuth credentials file at:\n"
+                            f"{secrets}", DANGER)
+                        return
+
+                    flow = InstalledAppFlow.from_client_secrets_file(
+                        str(secrets), self.SCOPES)
+                    self._set_status(
+                        "Browser opened — please sign in…", TEXT_MUTED)
+                    creds = flow.run_local_server(port=0)
+
+                token_path.parent.mkdir(parents=True, exist_ok=True)
+                token_path.write_text(creds.to_json())
+
+            # Create backup file
+            self._set_status("Creating backup…", TEXT_MUTED)
+            ok, bak_path = backup()
+            if not ok:
+                self._set_status(f"Backup failed: {bak_path}", DANGER)
+                return
+
+            # Upload
+            self._set_status("Uploading to Google Drive…", TEXT_MUTED)
+            service   = build("drive", "v3", credentials=creds)
+            file_name = os.path.basename(bak_path)
+            media     = MediaFileUpload(bak_path, mimetype="application/octet-stream")
+            uploaded  = service.files().create(
+                body={"name": file_name},
+                media_body=media, fields="id,name").execute()
+
+            self._set_status(
+                f"✓ Uploaded: {uploaded['name']}", SUCCESS)
+            self._bar.stop()
+            try:
+                self._status_lbl.configure(
+                    text=f"✓ Uploaded to Google Drive: {uploaded['name']}",
+                    text_color=SUCCESS)
+            except Exception:
+                pass
+            self.after(2000, self.destroy)
+
+        except Exception as e:
+            self._set_status(f"Error: {e}", DANGER)
+            self._bar.stop()
+
+    def _set_status(self, msg, color=None):
+        try:
+            self._progress.configure(
+                text=msg,
+                text_color=color or TEXT_MUTED)
+        except Exception:
+            pass

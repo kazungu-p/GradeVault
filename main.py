@@ -9,6 +9,7 @@ from pages.marks import MarksPage
 from pages.reports import ReportsPage
 from pages.analytics import AnalyticsPage
 from pages.backup import BackupPage
+from pages.communications import CommunicationsPage
 from pages.settings import SettingsPage
 from pages.setup_wizard import SetupWizard
 from pages.splash import SplashScreen
@@ -41,6 +42,7 @@ NAV_ITEMS = [
     ("reports",   "Reports",     "▦"),
     ("analytics", "Analytics",   "▲"),
     ("settings",  "Settings",    "⚙"),
+    ("comms",     "SMS & Comms", "✉"),
     ("backup",    "Backup",      "↓"),
 ]
 
@@ -259,6 +261,8 @@ class App(ctk.CTk):
             AnalyticsPage(self._content_frame)
         elif key == "backup":
             BackupPage(self._content_frame)
+        elif key == "comms":
+            CommunicationsPage(self._content_frame)
         elif key == "settings":
             SettingsPage(self._content_frame)
         else:

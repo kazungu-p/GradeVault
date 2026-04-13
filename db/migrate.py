@@ -139,6 +139,28 @@ CREATE TABLE IF NOT EXISTS marks_new (
     UNIQUE(student_id, assessment_id, subject_id)
 );
 
+
+CREATE TABLE IF NOT EXISTS student_contacts (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id   INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    name         TEXT NOT NULL,
+    relationship TEXT NOT NULL DEFAULT 'Parent',
+    phone        TEXT NOT NULL,
+    is_primary   INTEGER NOT NULL DEFAULT 0,
+    created_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sms_log (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    recipient    TEXT NOT NULL,
+    phone        TEXT NOT NULL,
+    message      TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'pending',
+    provider_id  TEXT,
+    cost         TEXT,
+    sent_at      TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS grading_scales (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     name       TEXT NOT NULL,
@@ -174,6 +196,37 @@ KCSE_SCALE = [
 
 
 
+def _ensure_new_tables():
+    """Create any tables added after initial migration."""
+    from db.connection import get_connection
+    conn = get_connection()
+    existing = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    if "student_contacts" not in existing:
+        conn.execute("""CREATE TABLE IF NOT EXISTS student_contacts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            relationship TEXT NOT NULL DEFAULT 'Parent',
+            phone TEXT NOT NULL,
+            is_primary INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )""")
+        conn.commit()
+    if "sms_log" not in existing:
+        conn.execute("""CREATE TABLE IF NOT EXISTS sms_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            recipient TEXT NOT NULL,
+            phone TEXT NOT NULL,
+            message TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            provider_id TEXT,
+            cost TEXT,
+            sent_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )""")
+        conn.commit()
+    conn.close()
+
 def _add_columns_if_missing():
     """Safely add new columns to existing databases."""
     from db.connection import get_connection
@@ -195,6 +248,7 @@ def run():
     print("Running GradeVault migrations...")
     execute_script(SCHEMA)
     _add_columns_if_missing()
+    _ensure_new_tables()
 
     # Default admin
     if not query_one("SELECT id FROM users WHERE username = 'admin'"):

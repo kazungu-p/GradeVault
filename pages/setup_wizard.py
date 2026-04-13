@@ -387,13 +387,13 @@ class SetupWizard(ctk.CTkToplevel):
             "Edit freely — one subject per line. You can also manage subjects later."
         ).pack(anchor="w", pady=(0, 10))
 
-        # Build merged preset from selected curricula
+        # Build merged preset from selected curricula using SECTION_ORDER
         curricula_selected = set(c[0] for c in self._selected_classes)
         merged = []
         seen = set()
-        for curr in ["8-4-4", "CBE Jr", "CBE Sr"]:
+        for curr in SECTION_ORDER:
             if curr in curricula_selected:
-                for s in SUBJECT_PRESETS[curr]:
+                for s in SUBJECT_PRESETS.get(curr, []):
                     if s not in seen:
                         merged.append(s)
                         seen.add(s)
