@@ -105,6 +105,9 @@ def send_sms(recipients: list[dict], message: str,
     Returns {sent, failed, total, cost}
     """
     try:
+        import warnings
+        warnings.filterwarnings('ignore', category=UserWarning,
+                               module='africastalking')
         import africastalking
     except ImportError:
         return {"error": "africastalking package not installed.\n"

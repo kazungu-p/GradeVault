@@ -44,24 +44,34 @@ class CommunicationsPage(ctk.CTkFrame):
             btn.pack(side="left", padx=(0, 6))
             self._tab_btns[key] = btn
 
+        # Content area below tabs — frames placed inside this
+        self._content_area = ctk.CTkFrame(self, fg_color="transparent")
+        self._content_area.pack(fill="both", expand=True)
+
         self._frames = {}
-        for key in ("sms", "contacts", "log", "settings"):
-            f = ctk.CTkFrame(self, fg_color="transparent")
+        _frame_keys = ["sms", "contacts", "log"]
+        if _is_admin:
+            _frame_keys.append("settings")
+
+        for key in _frame_keys:
+            f = ctk.CTkFrame(self._content_area, fg_color="transparent")
             self._frames[key] = f
+            f.place(relx=0, rely=0, relwidth=1, relheight=1)
 
         self._build_sms(self._frames["sms"])
         self._build_contacts(self._frames["contacts"])
         self._build_log(self._frames["log"])
-        self._build_settings(self._frames["settings"])
+        if _is_admin:
+            self._build_settings(self._frames["settings"])
         self._switch_tab("sms")
 
     def _switch_tab(self, key):
         self._active_tab = key
         for k, f in self._frames.items():
             if k == key:
-                f.pack(fill="both", expand=True)
+                f.lift()
             else:
-                f.pack_forget()
+                f.lower()
         for k, btn in self._tab_btns.items():
             btn.configure(
                 fg_color=ACCENT if k == key else "transparent",

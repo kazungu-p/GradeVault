@@ -67,6 +67,8 @@ class App(ctk.CTk):
         self.geometry("1280x800")
         self.minsize(960, 600)
         self.configure(fg_color=BG)
+        self._inactivity_timer = None
+        self._inactivity_limit  = 15 * 60 * 1000
 
         # App icon
         try:
