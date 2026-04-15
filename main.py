@@ -60,6 +60,81 @@ def get_visible_nav(user: dict, perms: list) -> list:
     return visible
 
 
+class ChangePasswordDialog(ctk.CTkToplevel):
+    def __init__(self, parent, user_id):
+        super().__init__(parent)
+        self.title("Change password")
+        self.geometry("440x380")
+        self.resizable(False, False)
+        self.grab_set()
+        self._user_id = user_id
+        self._build()
+
+    def _build(self):
+        outer = ctk.CTkFrame(self, fg_color=BG)
+        outer.pack(fill="both", expand=True)
+        f = ctk.CTkScrollableFrame(outer, fg_color=BG, corner_radius=0)
+        f.pack(fill="both", expand=True, padx=32, pady=(24,0))
+        heading(f, "Change password", size=15).pack(anchor="w", pady=(0,16))
+
+        muted(f, "Current password").pack(anchor="w")
+        self._cur = ctk.CTkEntry(f, width=340, show="•",
+                                  fg_color=SURFACE, border_color=BORDER)
+        self._cur.pack(anchor="w", pady=(4, 12))
+
+        muted(f, "New password").pack(anchor="w")
+        self._new1 = ctk.CTkEntry(f, width=340, show="•",
+                                   fg_color=SURFACE, border_color=BORDER)
+        self._new1.pack(anchor="w", pady=(4, 12))
+
+        muted(f, "Confirm new password").pack(anchor="w")
+        self._new2 = ctk.CTkEntry(f, width=340, show="•",
+                                   fg_color=SURFACE, border_color=BORDER)
+        self._new2.pack(anchor="w", pady=(4, 10))
+
+        self._msg = ctk.CTkLabel(f, text="", font=("", 12),
+                                  text_color=DANGER)
+        self._msg.pack(anchor="w")
+
+        # Buttons pinned at bottom
+        btn_row = ctk.CTkFrame(outer, fg_color=SURFACE,
+                               border_color=BORDER, border_width=1,
+                               corner_radius=0, height=56)
+        btn_row.pack(fill="x", side="bottom")
+        btn_row.pack_propagate(False)
+        ghost_btn(btn_row, "Cancel", command=self.destroy,
+                  width=100).pack(side="left", padx=20, pady=10)
+        primary_btn(btn_row, "Save",
+                    command=self._submit, width=100).pack(
+            side="right", padx=20, pady=10)
+
+    def _submit(self):
+        from routes.auth import change_password
+        cur  = self._cur.get()
+        new1 = self._new1.get()
+        new2 = self._new2.get()
+        if not cur or not new1:
+            self._msg.configure(text="All fields are required.",
+                                text_color=DANGER)
+            return
+        if len(new1) < 6:
+            self._msg.configure(
+                text="Password must be at least 6 characters.",
+                text_color=DANGER)
+            return
+        if new1 != new2:
+            self._msg.configure(text="Passwords do not match.",
+                                text_color=DANGER)
+            return
+        ok, msg = change_password(self._user_id, cur, new1)
+        if ok:
+            self._msg.configure(text="✓ Password changed.",
+                                text_color=SUCCESS)
+            self.after(1500, self.destroy)
+        else:
+            self._msg.configure(text=msg, text_color=DANGER)
+
+
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()

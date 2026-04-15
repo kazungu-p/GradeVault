@@ -70,8 +70,8 @@ def get_primary_contacts_for_class(class_id: int) -> list:
     """All primary contacts for active students in a class."""
     return query(
         """
-        SELECT s.full_name AS student_name, s.admission_number,
-               c.name, c.phone, c.relationship
+        SELECT s.id AS student_id, s.full_name AS student_name,
+               s.admission_number, c.name, c.phone, c.relationship
         FROM student_contacts c
         JOIN students s ON c.student_id = s.id
         WHERE s.class_id=? AND s.status='active' AND c.is_primary=1
@@ -84,8 +84,8 @@ def get_primary_contacts_for_class(class_id: int) -> list:
 def get_all_primary_contacts() -> list:
     return query(
         """
-        SELECT s.full_name AS student_name, s.admission_number,
-               cl.name AS class_name, cl.stream,
+        SELECT s.id AS student_id, s.full_name AS student_name,
+               s.admission_number, cl.name AS class_name, cl.stream,
                c.name, c.phone, c.relationship
         FROM student_contacts c
         JOIN students s ON c.student_id = s.id

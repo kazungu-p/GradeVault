@@ -121,19 +121,18 @@ class ReportsPage(ctk.CTkFrame):
             btn.pack(side="left", padx=(0, 6))
             self._tab_btns[key] = btn
 
+        self._content_area = ctk.CTkFrame(self, fg_color="transparent")
+        self._content_area.pack(fill="both", expand=True)
+
         self._frames = {}
         for key in ("generate", "comments", "grading"):
-            f = ctk.CTkFrame(self, fg_color="transparent")
+            f = ctk.CTkFrame(self._content_area, fg_color="transparent")
             self._frames[key] = f
+            f.place(relx=0, rely=0, relwidth=1, relheight=1)
 
-        # Build all tabs upfront — prevents flash on switch
         self._build_generate(self._frames["generate"])
         self._build_comments(self._frames["comments"])
         self._build_grading(self._frames["grading"])
-
-        # Place all frames in same grid position, switch visibility
-        for f in self._frames.values():
-            f.place(relx=0, rely=0, relwidth=1, relheight=1)
         self._switch_tab("generate")
 
     def _switch_tab(self, key):
@@ -239,8 +238,15 @@ class ReportsPage(ctk.CTkFrame):
                     == cls_label), None)
         if cls:
             curr = detect_curriculum(cls["name"])
+            friendly = {
+                "ECDE":          "ECDE / Pre-Primary (CBC)",
+                "Lower Primary": "Lower Primary (CBC)",
+                "Upper Primary": "Upper Primary (CBC)",
+                "CBC":           "CBC — Senior/Junior Secondary (Grade 7–12)",
+                "8-4-4":         "8-4-4 (KCSE)",
+            }.get(curr, curr)
             self._curr_label.configure(
-                text=f"Curriculum: {curr}",
+                text=f"Curriculum detected: {friendly}",
                 text_color=ACCENT)
 
     def _generate(self):
@@ -405,8 +411,10 @@ class ReportsPage(ctk.CTkFrame):
             set_setting(f"cbe_{grade}_pts", str(pts))
         # Rebuild grading tab
         self._frames["grading"].destroy()
-        self._frames["grading"] = ctk.CTkFrame(self, fg_color="transparent")
-        self._build_grading(self._frames["grading"])
+        f = ctk.CTkFrame(self._content_area, fg_color="transparent")
+        f.place(relx=0, rely=0, relwidth=1, relheight=1)
+        self._frames["grading"] = f
+        self._build_grading(f)
         self._switch_tab("grading")
 
     def _section(self, parent, title):

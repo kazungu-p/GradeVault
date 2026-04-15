@@ -192,27 +192,46 @@ class AnalyticsPage(ctk.CTkFrame):
         where  = "AND m.class_id=?" if class_id else ""
         params = (asmt_id, class_id) if class_id else (asmt_id,)
 
-        stats = query_one(f"""
-            SELECT COUNT(DISTINCT m.student_id) AS students,
-                   ROUND(AVG(m.percentage), 1)  AS mean,
-                   ROUND(MIN(m.percentage), 1)  AS min_pct,
-                   ROUND(MAX(m.percentage), 1)  AS max_pct
-            FROM marks_new m
-            WHERE m.assessment_id=? {where}
-        """, params) or {}
+        if class_id:
+            stats = query_one("""
+                SELECT COUNT(DISTINCT student_id) AS students,
+                       ROUND(AVG(percentage), 1)  AS mean,
+                       ROUND(MIN(percentage), 1)  AS min_pct,
+                       ROUND(MAX(percentage), 1)  AS max_pct
+                FROM marks_new
+                WHERE assessment_id=? AND class_id=?
+            """, (asmt_id, class_id)) or {}
+        else:
+            stats = query_one("""
+                SELECT COUNT(DISTINCT student_id) AS students,
+                       ROUND(AVG(percentage), 1)  AS mean,
+                       ROUND(MIN(percentage), 1)  AS min_pct,
+                       ROUND(MAX(percentage), 1)  AS max_pct
+                FROM marks_new
+                WHERE assessment_id=?
+            """, (asmt_id,)) or {}
 
         mean     = stats.get("mean")    or 0
         students = stats.get("students") or 0
         min_pct  = stats.get("min_pct") or 0
         max_pct  = stats.get("max_pct") or 0
 
-        pass_count = (query_one(f"""
-            SELECT COUNT(*) AS n FROM (
-                SELECT student_id, AVG(percentage) AS avg_pct
-                FROM marks_new WHERE assessment_id=? {where}
-                GROUP BY student_id
-            ) WHERE avg_pct >= 50
-        """, params) or {}).get("n", 0)
+        if class_id:
+            pass_count = (query_one("""
+                SELECT COUNT(*) AS n FROM (
+                    SELECT student_id, AVG(percentage) AS avg_pct
+                    FROM marks_new WHERE assessment_id=? AND class_id=?
+                    GROUP BY student_id
+                ) WHERE avg_pct >= 50
+            """, (asmt_id, class_id)) or {}).get("n", 0)
+        else:
+            pass_count = (query_one("""
+                SELECT COUNT(*) AS n FROM (
+                    SELECT student_id, AVG(percentage) AS avg_pct
+                    FROM marks_new WHERE assessment_id=?
+                    GROUP BY student_id
+                ) WHERE avg_pct >= 50
+            """, (asmt_id,)) or {}).get("n", 0)
 
         pass_rate = round(pass_count / students * 100, 1) if students else 0
 
@@ -240,13 +259,31 @@ class AnalyticsPage(ctk.CTkFrame):
             ctk.CTkLabel(inner, text=sub, font=("", 11),
                          text_color=color).pack(anchor="w")
 
+        # Print / export overview button
+        ov_btn_row = ctk.CTkFrame(parent, fg_color="transparent")
+        ov_btn_row.pack(fill="x", pady=(0, 8))
+        _ov_stats = {"students": students, "mean": mean,
+                     "pass_rate": pass_rate,
+                     "max_pct": max_pct, "min_pct": min_pct}
+        ghost_btn(ov_btn_row, "Print / Export overview",
+                  command=lambda s=_ov_stats, a=asmt_id, c=class_id:
+                      self._print_overview(a, c, s),
+                  width=190).pack(side="right")
+
         # Grade distribution
-        grade_rows = query(f"""
-            SELECT m.grade, COUNT(*) AS n
-            FROM marks_new m
-            WHERE m.assessment_id=? {where}
-            GROUP BY m.grade ORDER BY n DESC
-        """, params)
+        if class_id:
+            grade_rows = query("""
+                SELECT grade, COUNT(*) AS n
+                FROM marks_new
+                WHERE assessment_id=? AND class_id=?
+                GROUP BY grade ORDER BY n DESC
+            """, (asmt_id, class_id))
+        else:
+            grade_rows = query("""
+                SELECT grade, COUNT(*) AS n
+                FROM marks_new WHERE assessment_id=?
+                GROUP BY grade ORDER BY n DESC
+            """, (asmt_id,))
 
         if grade_rows:
             sec = self._section(parent, "Grade distribution")
@@ -304,7 +341,8 @@ class AnalyticsPage(ctk.CTkFrame):
         self._export_row(sec2,
             ["#", "Subject", "Mean %", "Min %", "Max %", "Count"], tbl)
         self._data_table(sec2,
-            ["#", "Subject", "Mean %", "Min %", "Max %", "Count"], tbl)
+            ["#", "Subject", "Mean %", "Min %", "Max %", "Count"], tbl,
+            col_widths=[40, 280, 90, 90, 90, 70])
 
     # ── Exam ranking ──────────────────────────────────────────
     def _tab_ranking(self, parent, asmt_id, class_id, asmt2_id):
@@ -326,22 +364,40 @@ class AnalyticsPage(ctk.CTkFrame):
             muted(parent, "No marks found.").pack(pady=24)
             return
 
+        from utils.grading import grade_from_percentage, detect_curriculum
+        show_class = class_id is None
+
         data = []
         pos  = 1
         for i, r in enumerate(rows):
             if i > 0 and r["mean"] < rows[i-1]["mean"]:
                 pos = i + 1
-            data.append([str(pos), r["full_name"],
-                          r["admission_number"],
-                          r["cls"], f"{r['mean']:.1f}%"])
+            # Get grade for this student's mean
+            cls_name = r["cls"].split()[0] if r["cls"] else ""
+            curriculum = detect_curriculum(cls_name)
+            grade, _ = grade_from_percentage(r["mean"], curriculum)
+            row_data = [str(pos), r["full_name"],
+                        r["admission_number"]]
+            if show_class:
+                row_data.append(r["cls"])
+            row_data += [f"{r['mean']:.1f}", grade]
+            data.append(row_data)
+
+        headers = ["#", "Full name", "Adm. No."]
+        if show_class:
+            headers.append("Class")
+        headers += ["Mean", "Grade"]
+
+        widths = [40, 220, 120]
+        if show_class:
+            widths.append(150)
+        widths += [70, 70]
 
         sec = self._section(parent,
                             f"Exam ranking — {len(data)} student(s)")
-        self._export_row(sec,
-            ["#", "Full name", "Adm. No.", "Class", "Mean %"], data)
-        self._data_table(
-            sec, ["#", "Full name", "Adm. No.", "Class", "Mean %"],
-            data, highlight_top=3)
+        self._export_row(sec, headers, data)
+        self._data_table(sec, headers, data,
+                         highlight_top=3, col_widths=widths)
 
     # ── Most improved students ────────────────────────────────
     def _tab_improved_students(self, parent, asmt_id,
@@ -481,7 +537,10 @@ class AnalyticsPage(ctk.CTkFrame):
     def _export_row(self, parent, headers, rows):
         """Add export buttons to a section."""
         f = ctk.CTkFrame(parent, fg_color="transparent")
-        f.pack(fill="x", padx=12, pady=(0, 6))
+        f.pack(fill="x", padx=12, pady=(8, 6))
+        ghost_btn(f, "Print",
+                  command=lambda: self._print_table(headers, rows),
+                  width=80).pack(side="right", padx=(6, 0))
         ghost_btn(f, "Export PDF",
                   command=lambda: self._export_pdf(headers, rows),
                   width=100).pack(side="right", padx=(6, 0))
@@ -515,7 +574,20 @@ class AnalyticsPage(ctk.CTkFrame):
         os.system(f'open "{path}"' if os.name != "nt"
                   else f'start "" "{path}"')
 
-    def _export_pdf(self, headers, rows):
+    def _print_table(self, headers, rows):
+        """Generate PDF then send to printer."""
+        import tempfile, os
+        tmp = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
+        tmp.close()
+        self._export_pdf(headers, rows, path=tmp.name, silent=True)
+        if os.name == "nt":
+            os.startfile(tmp.name, "print")
+        else:
+            ret = os.system(f'lpr "{tmp.name}"')
+            if ret != 0:
+                os.system(f'open "{tmp.name}"')
+
+    def _export_pdf(self, headers, rows, path=None, silent=False):
         from tkinter import filedialog
         from reportlab.lib.pagesizes import A4, landscape
         from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -524,13 +596,14 @@ class AnalyticsPage(ctk.CTkFrame):
         from reportlab.lib.units import cm
         from routes.settings import get_setting
 
-        path = filedialog.asksaveasfilename(
-            defaultextension=".pdf",
-            filetypes=[("PDF", "*.pdf")],
-            initialfile="analytics_export.pdf",
-            title="Save PDF as")
         if not path:
-            return
+            path = filedialog.asksaveasfilename(
+                defaultextension=".pdf",
+                filetypes=[("PDF", "*.pdf")],
+                initialfile="analytics_export.pdf",
+                title="Save PDF as")
+            if not path:
+                return
 
         doc = SimpleDocTemplate(path, pagesize=landscape(A4),
                                  leftMargin=1.5*cm, rightMargin=1.5*cm,
@@ -567,22 +640,25 @@ class AnalyticsPage(ctk.CTkFrame):
         story.append(t)
         doc.build(story)
         import os
-        os.system(f'open "{path}"' if os.name != "nt"
-                  else f'start "" "{path}"')
+        if not silent:
+            os.system(f'open "{path}"' if os.name != "nt"
+                      else f'start "" "{path}"')
 
     def _data_table(self, parent, headers, rows,
-                    highlight_top=0, color_col=None):
+                    highlight_top=0, color_col=None,
+                    col_widths=None):
         f = ctk.CTkFrame(parent, fg_color="transparent")
         f.pack(fill="x", padx=12, pady=(6, 12))
 
-        n      = len(headers)
-        col_w  = max(80, 660 // n)
+        n     = len(headers)
+        col_w = max(80, 660 // n)
 
         thead = ctk.CTkFrame(f, fg_color="#F3F4F6", corner_radius=6)
         thead.pack(fill="x", pady=(0, 2))
-        for h in headers:
+        for hi, h in enumerate(headers):
+            w = col_widths[hi] if col_widths and hi < len(col_widths) else col_w
             ctk.CTkLabel(thead, text=h, font=("", 11, "bold"),
-                         text_color=TEXT_MUTED, width=col_w,
+                         text_color=TEXT_MUTED, width=w,
                          anchor="w").pack(
                 side="left", padx=(10, 0), pady=6)
 
@@ -608,9 +684,10 @@ class AnalyticsPage(ctk.CTkFrame):
                              else TEXT_MUTED)
                 if highlight_top and i < highlight_top and j == 0:
                     color = ACCENT
+                w = col_widths[j] if col_widths and j < len(col_widths) else col_w
                 ctk.CTkLabel(r, text=str(cell),
                              font=("", 11), text_color=color,
-                             width=col_w, anchor="w").pack(
+                             width=w, anchor="w").pack(
                     side="left", padx=(10, 0))
 
     def _bar_chart(self, parent, rows, label_key, value_key,

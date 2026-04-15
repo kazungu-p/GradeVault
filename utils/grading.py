@@ -8,26 +8,40 @@ _KCSE_DEFAULT = [
     (35, 39, "D",    3), (30, 34, "D-",  2), (0,  29, "E",    1),
 ]
 _CBE_DEFAULT = [
-    (75, 100, "EE", 4), (50, 74, "ME", 3),
-    (25, 49,  "AE", 2), (0,  24, "BE", 1),
+    (90, 100, "EE", 4), (75, 89, "EE", 4),
+    (65,  74, "ME", 3), (50, 64, "ME", 3),
+    (35,  49, "AE", 2), (25, 34, "AE", 2),
+    (10,  24, "BE", 1), (0,   9, "BE", 1),
+]
+
+# Simplified 4-band CBC scale (used for settings display)
+_CBE_BANDS = [
+    (75, 100, "EE", 4),
+    (50,  74, "ME", 3),
+    (25,  49, "AE", 2),
+    (0,   24, "BE", 1),
 ]
 
 
 def _load_scale(prefix: str, defaults: list) -> list:
     """Load grading scale from settings, falling back to defaults."""
-    from routes.settings import get_setting
-    result = []
-    for _, _, grade, _ in defaults:
-        try:
-            min_s = float(get_setting(f"{prefix}_{grade}_min", ""))
-            max_s = float(get_setting(f"{prefix}_{grade}_max", ""))
-            pts   = float(get_setting(f"{prefix}_{grade}_pts", ""))
-            result.append((min_s, max_s, grade, int(pts)))
-        except (ValueError, TypeError):
-            # Fall back to default for this grade
-            orig = next(d for d in defaults if d[2] == grade)
-            result.append(orig)
-    return result if result else defaults
+    try:
+        from routes.settings import get_setting
+        result = []
+        for min_def, max_def, grade, pts_def in defaults:
+            try:
+                saved_min = get_setting(f"{prefix}_{grade}_min", "")
+                saved_max = get_setting(f"{prefix}_{grade}_max", "")
+                saved_pts = get_setting(f"{prefix}_{grade}_pts", "")
+                min_s = float(saved_min) if saved_min else float(min_def)
+                max_s = float(saved_max) if saved_max else float(max_def)
+                pts   = int(float(saved_pts)) if saved_pts else int(pts_def)
+                result.append((min_s, max_s, grade, pts))
+            except (ValueError, TypeError):
+                result.append((min_def, max_def, grade, pts_def))
+        return result if result else defaults
+    except Exception:
+        return defaults
 
 
 def _get_kcse_scale():
@@ -43,35 +57,26 @@ CBE_SCALE  = _CBE_DEFAULT
 LANGUAGE_SUBJECTS = {"english", "kiswahili", "english language",
                      "kiswahili language", "fasihi"}
 
-# Curriculum detection by class name prefix
-_ECDE_PREFIXES        = {"pp1", "pp2"}
-_LOWER_PRIMARY_PREFIX = {"grade 1", "grade 2", "grade 3"}
-_UPPER_PRIMARY_PREFIX = {"grade 4", "grade 5", "grade 6"}
-_CBC_SECONDARY_PREFIX = {"grade 7", "grade 8", "grade 9",
-                          "grade 10", "grade 11", "grade 12"}
-
-
 def detect_curriculum(class_name: str) -> str:
     """
-    Returns one of:
-      'ECDE'          — PP1, PP2
-      'Lower Primary' — Grade 1-3
-      'Upper Primary' — Grade 4-6
-      'CBC'           — Grade 7-12
-      '8-4-4'         — Form 1-4
+    Detect curriculum from class name.
+    Uses word-boundary matching to avoid "grade 1" matching "grade 10".
     """
+    import re
     name = (class_name or "").lower().strip()
-    if name in _ECDE_PREFIXES:
+    # Extract first word + number e.g. "grade 10" from "grade 10 east"
+    m = re.match(r"^(pp\d+|grade\s+\d+|form\s+\d+)", name)
+    base = m.group(1).strip() if m else name
+
+    if base in ("pp1", "pp2"):
         return "ECDE"
-    for prefix in _LOWER_PRIMARY_PREFIX:
-        if name.startswith(prefix):
-            return "Lower Primary"
-    for prefix in _UPPER_PRIMARY_PREFIX:
-        if name.startswith(prefix):
-            return "Upper Primary"
-    for prefix in _CBC_SECONDARY_PREFIX:
-        if name.startswith(prefix):
-            return "CBC"
+    if base in ("grade 1", "grade 2", "grade 3"):
+        return "Lower Primary"
+    if base in ("grade 4", "grade 5", "grade 6"):
+        return "Upper Primary"
+    if base in ("grade 7", "grade 8", "grade 9",
+                "grade 10", "grade 11", "grade 12"):
+        return "CBC"
     return "8-4-4"
 
 
@@ -79,14 +84,18 @@ def grade_from_percentage(percentage: float, curriculum: str) -> tuple[str, int]
     """Returns (grade_letter, points) using saved grading scale."""
     if curriculum in ("ECDE", "Lower Primary", "Upper Primary", "CBC"):
         scale = _get_cbe_scale()
-        fallback = "BE"
+        fallback = ("BE", 1)
     else:
         scale = _get_kcse_scale()
-        fallback = "E"
-    for min_s, max_s, grade, points in scale:
-        if min_s <= round(percentage, 1) <= max_s:
+        fallback = ("E", 1)
+
+    pct = round(float(percentage), 1)
+    # Sort scale by min_s descending so highest matching wins
+    sorted_scale = sorted(scale, key=lambda x: x[0], reverse=True)
+    for min_s, max_s, grade, points in sorted_scale:
+        if pct >= min_s:
             return grade, points
-    return fallback, 1
+    return fallback
 
 
 def subject_comment(grade: str, curriculum: str) -> str:

@@ -280,13 +280,13 @@ class CommunicationsPage(ctk.CTkFrame):
             return contacts
 
         if cls:
-            return [{"name": r["name"], "phone": r["phone"],
-                     "student_id": None,
-                     "student_name": r["student_name"]}
-                    for r in get_primary_contacts_for_class(cls["id"])]
+            rows = get_primary_contacts_for_class(cls["id"])
+        else:
+            rows = get_all_primary_contacts()
         return [{"name": r["name"], "phone": r["phone"],
-                 "student_id": None}
-                for r in get_all_primary_contacts()]
+                 "student_id": r.get("student_id"),
+                 "student_name": r.get("student_name", "")}
+                for r in rows]
 
     def _preview_recipients(self):
         recips = self._get_recipients()
@@ -323,9 +323,7 @@ class CommunicationsPage(ctk.CTkFrame):
             self._do_send(recips, msg, api_key, username)
 
     def _send_report_sms(self, recips, api_key, username):
-        from routes.assessments import get_assessments
-        asmt_name = getattr(self, "_asmt_var",
-                            ctk.StringVar()).get()
+        asmt_name = getattr(self, "_asmt_var", ctk.StringVar()).get()
         asmt = next((a for a in getattr(self, "_asmt_data", [])
                      if a["name"] == asmt_name), None)
         if not asmt:
@@ -333,23 +331,51 @@ class CommunicationsPage(ctk.CTkFrame):
                 text="No assessment selected.", text_color=DANGER)
             return
 
-        school = __import__("routes.settings",
-                            fromlist=["get_setting"]).get_setting(
-            "school_name", "School")
+        from routes.settings import get_setting as gs
+        school = gs("school_name", "School")
 
-        # Build personalised messages per student
-        sel = self._class_var.get()
-        cls = next((c for c in self._classes_data
-                    if f"{c['name']}{' '+c['stream'] if c.get('stream') else ''}"
-                    == sel), None)
+        # Build result map across all classes
+        from db.connection import query as dbq
+        all_results = dbq(
+            """SELECT m.student_id, c.id AS class_id,
+                      ROUND(AVG(m.percentage),1) AS mean
+               FROM marks_new m
+               JOIN classes c ON m.class_id=c.id
+               WHERE m.assessment_id=?
+               GROUP BY m.student_id""",
+            (asmt["id"],)
+        )
 
-        if not cls:
-            self._send_status.configure(
-                text="Please select a class first.", text_color=DANGER)
-            return
+        # Rank per class
+        from collections import defaultdict
+        by_class = defaultdict(list)
+        for r in all_results:
+            by_class[r["class_id"]].append(r)
+        for cid, rows in by_class.items():
+            rows.sort(key=lambda x: x["mean"], reverse=True)
+            pos = 1
+            for i, r in enumerate(rows):
+                if i > 0 and r["mean"] < rows[i-1]["mean"]:
+                    pos = i + 1
+                r["position"] = pos
 
-        results = compute_class_results(asmt["id"], cls["id"])
-        result_map = {r["student_id"]: r for r in results}
+        from utils.grading import grade_from_percentage, detect_curriculum
+        from db.connection import query_one as dqo
+
+        result_map = {}
+        for r in all_results:
+            cls_row = dqo("SELECT name FROM classes WHERE id=?",
+                          (r["class_id"],)) or {}
+            curr = detect_curriculum(cls_row.get("name",""))
+            grade, _ = grade_from_percentage(r["mean"], curr)
+            result_map[r["student_id"]] = {
+                "mean": r["mean"], "grade": grade,
+                "position": r.get("position", "—")
+            }
+
+        # Get full names
+        names_map = {r["id"]: r["full_name"] for r in dbq(
+            "SELECT id, full_name FROM students")}
 
         messages = []
         for r in recips:
@@ -359,9 +385,10 @@ class CommunicationsPage(ctk.CTkFrame):
             res = result_map.get(sid)
             if not res:
                 continue
+            student_name = names_map.get(sid, "Student")
             msg = (f"{school}\n"
                    f"Dear {r['name']},\n"
-                   f"{res['full_name']} scored {res['mean']:.1f}% "
+                   f"{student_name} scored {res['mean']:.1f}% "
                    f"({res['grade']}) — "
                    f"Position {res['position']} in class.\n"
                    f"{asmt_name}")
@@ -370,7 +397,8 @@ class CommunicationsPage(ctk.CTkFrame):
 
         if not messages:
             self._send_status.configure(
-                text="No results found to send.", text_color=DANGER)
+                text="No marks found for these students in the selected assessment.",
+                text_color=DANGER)
             return
 
         self._send_status.configure(
