@@ -1,5 +1,6 @@
 import customtkinter as ctk
 from utils.theme import *
+from pages.promotion import PromotionWizard
 from routes.classes import (
     get_classes, create_class, update_class, delete_class,
     bulk_promote, get_subjects, create_subject,
@@ -59,6 +60,9 @@ class ClassesPage(ctk.CTkFrame):
         ghost_btn(ctrl, "Bulk promote",
                   command=self._bulk_promote_dialog,
                   width=110).pack(side="right", padx=(0, 8))
+        primary_btn(ctrl, "End-of-year →",
+                    command=self._end_of_year,
+                    width=130).pack(side="right", padx=(0, 8))
 
         tcard = card(f)
         tcard.pack(fill="both", expand=True)
@@ -178,6 +182,9 @@ class ClassesPage(ctk.CTkFrame):
     def _retire_class(self, cls):
         label = f"{cls['name']} {cls['stream']}".strip() if cls['stream'] else cls['name']
         RetireClassDialog(self, cls=cls, on_done=self._load_classes)
+
+    def _end_of_year(self):
+        PromotionWizard(self, on_done=self._load_classes)
 
     def _bulk_promote_dialog(self):
         BulkPromoteDialog(self, on_done=self._load_classes)

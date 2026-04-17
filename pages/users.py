@@ -14,6 +14,8 @@ from routes.settings import (
 class UsersPage(ctk.CTkFrame):
     def __init__(self, parent):
         super().__init__(parent, fg_color=BG)
+        self._users = []
+        self._active_tab = "users"
         self._build()
         self._load()
 
@@ -27,13 +29,39 @@ class UsersPage(ctk.CTkFrame):
                     command=self._open_add_form,
                     width=120).pack(side="right")
 
-        # Role filter tabs
+        # Page tabs: Users | Audit log
+        page_tabs = ctk.CTkFrame(self, fg_color="transparent")
+        page_tabs.pack(fill="x", pady=(0, 10))
+        self._page_tab_btns = {}
+        for key, lbl in [("users", "Users"), ("audit", "Audit log")]:
+            btn = ctk.CTkButton(
+                page_tabs, text=lbl, height=28, width=120,
+                fg_color=ACCENT if key == "users" else "transparent",
+                text_color="white" if key == "users" else TEXT_MUTED,
+                hover_color=ACCENT_BG, corner_radius=6, font=("", 12),
+                command=lambda k=key: self._switch_page_tab(k),
+            )
+            btn.pack(side="left", padx=(0, 6))
+            self._page_tab_btns[key] = btn
+
+        self._page_content = ctk.CTkFrame(self, fg_color="transparent")
+        self._page_content.pack(fill="both", expand=True)
+
+        self._users_pane = ctk.CTkFrame(
+            self._page_content, fg_color="transparent")
+        self._audit_pane = ctk.CTkFrame(
+            self._page_content, fg_color="transparent")
+        for p in (self._users_pane, self._audit_pane):
+            p.place(relx=0, rely=0, relwidth=1, relheight=1)
+        self._build_audit_pane(self._audit_pane)
+
+        # Role filter tabs (inside users pane)
         self._role_var = ctk.StringVar(value="All")
-        self._tabs_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self._tabs_frame = ctk.CTkFrame(self._users_pane, fg_color="transparent")
         self._tabs_frame.pack(fill="x", pady=(0, 10))
         self._render_tabs("All")
 
-        tcard = card(self)
+        tcard = card(self._users_pane)
         tcard.pack(fill="both", expand=True)
 
         thead = ctk.CTkFrame(tcard, fg_color="#F3F4F6", corner_radius=0)
@@ -48,7 +76,72 @@ class UsersPage(ctk.CTkFrame):
 
         self._body = ctk.CTkScrollableFrame(
             tcard, fg_color=SURFACE, corner_radius=0)
+        # Switch to users pane after building
+        self._users_pane.lift()
         self._body.pack(fill="both", expand=True, padx=1, pady=(0, 1))
+
+    def _switch_page_tab(self, key):
+        self._active_tab = key
+        if key == "users":
+            self._users_pane.lift()
+        else:
+            self._audit_pane.lift()
+            self._refresh_audit()
+        for k, btn in self._page_tab_btns.items():
+            btn.configure(
+                fg_color=ACCENT if k == key else "transparent",
+                text_color="white" if k == key else TEXT_MUTED)
+
+    def _build_audit_pane(self, parent):
+        top = ctk.CTkFrame(parent, fg_color="transparent")
+        top.pack(fill="x", pady=(0, 8))
+        label(top, "Audit log", size=13, weight="bold").pack(side="left")
+        ghost_btn(top, "Refresh",
+                  command=self._refresh_audit, width=90).pack(side="right")
+        self._audit_tcard = card(parent)
+        self._audit_tcard.pack(fill="both", expand=True)
+        self._refresh_audit()
+
+    def _refresh_audit(self):
+        for w in self._audit_tcard.winfo_children():
+            w.destroy()
+        thead = ctk.CTkFrame(self._audit_tcard, fg_color="#F3F4F6",
+                             corner_radius=0)
+        thead.pack(fill="x", padx=1, pady=(1, 0))
+        for txt, w in [("User", 150), ("Action", 140),
+                        ("Details", 350), ("Time", 150)]:
+            ctk.CTkLabel(thead, text=txt, font=("", 11, "bold"),
+                         text_color=TEXT_MUTED, width=w,
+                         anchor="w").pack(side="left", padx=(10, 0), pady=6)
+        body = ctk.CTkScrollableFrame(
+            self._audit_tcard, fg_color=SURFACE, corner_radius=0)
+        body.pack(fill="both", expand=True, padx=1, pady=(0, 1))
+        from db.connection import query as dbq
+        logs = dbq("""
+            SELECT u.full_name, a.action, a.details, a.created_at
+            FROM audit_logs a
+            LEFT JOIN users u ON a.user_id = u.id
+            ORDER BY a.created_at DESC LIMIT 200
+        """) or []
+        if not logs:
+            muted(body, "No audit entries yet.").pack(pady=20)
+            return
+        for i, r in enumerate(logs):
+            bg = SURFACE if i % 2 == 0 else "#FAFAFA"
+            row = ctk.CTkFrame(body, fg_color=bg,
+                               corner_radius=0, height=34)
+            row.pack(fill="x")
+            row.pack_propagate(False)
+            details = (r.get("details") or "")[:50]
+            for txt, w in [
+                (r.get("full_name") or "System", 150),
+                (r.get("action") or "", 140),
+                (details, 350),
+                ((r.get("created_at") or "")[:16], 150),
+            ]:
+                ctk.CTkLabel(row, text=str(txt), font=("", 11),
+                             text_color=TEXT, width=w,
+                             anchor="w").pack(side="left", padx=(10, 0))
 
     def _render_tabs(self, active):
         for w in self._tabs_frame.winfo_children():
@@ -125,6 +218,12 @@ class UsersPage(ctk.CTkFrame):
                           border_width=1, text_color=TEXT, corner_radius=6,
                           hover_color=BG, font=("", 11),
                           command=lambda usr=u: self._open_edit_form(usr)
+                          ).pack(side="left", padx=(0, 4))
+            ctk.CTkButton(actions, text="Reset pwd", width=82, height=26,
+                          fg_color="transparent", border_color=BORDER,
+                          border_width=1, text_color=TEXT_MUTED,
+                          corner_radius=6, hover_color=BG, font=("", 11),
+                          command=lambda usr=u: ResetPasswordDialog(self, usr)
                           ).pack(side="left", padx=(0, 4))
 
             if u["role"] == "teacher":
@@ -440,3 +539,66 @@ class AssignmentsDialog(ctk.CTkToplevel):
         from routes.users import remove_assignment
         remove_assignment(assignment_id)
         self._load()
+
+
+# ── Reset password dialog ─────────────────────────────────────
+class ResetPasswordDialog(ctk.CTkToplevel):
+    def __init__(self, parent, user):
+        super().__init__(parent)
+        self.title("Reset password")
+        self.geometry("400x260")
+        self.resizable(False, False)
+        self.grab_set()
+        self._user = user
+        self._build()
+
+    def _build(self):
+        f = ctk.CTkFrame(self, fg_color=BG)
+        f.pack(fill="both", expand=True, padx=28, pady=28)
+
+        heading(f, "Reset password", size=15).pack(anchor="w", pady=(0, 4))
+        muted(f, f"Set a new password for {self._user['full_name']}."
+              ).pack(anchor="w", pady=(0, 16))
+
+        muted(f, "New password *").pack(anchor="w")
+        self._pw1 = ctk.CTkEntry(f, width=340, show="•",
+                                  fg_color=SURFACE, border_color=BORDER)
+        self._pw1.pack(anchor="w", pady=(4, 10))
+
+        muted(f, "Confirm password *").pack(anchor="w")
+        self._pw2 = ctk.CTkEntry(f, width=340, show="•",
+                                  fg_color=SURFACE, border_color=BORDER)
+        self._pw2.pack(anchor="w", pady=(4, 10))
+
+        self._msg = ctk.CTkLabel(f, text="", font=("", 12),
+                                  text_color=DANGER)
+        self._msg.pack(anchor="w")
+
+        btn_row = ctk.CTkFrame(f, fg_color="transparent")
+        btn_row.pack(fill="x", pady=(8, 0))
+        ghost_btn(btn_row, "Cancel", command=self.destroy,
+                  width=100).pack(side="left")
+        primary_btn(btn_row, "Reset",
+                    command=self._submit, width=100).pack(side="right")
+
+    def _submit(self):
+        import bcrypt
+        from db.connection import execute
+        pw1 = self._pw1.get()
+        pw2 = self._pw2.get()
+        if not pw1:
+            self._msg.configure(text="Password is required.")
+            return
+        if len(pw1) < 6:
+            self._msg.configure(
+                text="Password must be at least 6 characters.")
+            return
+        if pw1 != pw2:
+            self._msg.configure(text="Passwords do not match.")
+            return
+        pw_hash = bcrypt.hashpw(
+            pw1.encode(), bcrypt.gensalt()).decode()
+        execute("UPDATE users SET password_hash=? WHERE id=?",
+                (pw_hash, self._user["id"]))
+        self._msg.configure(text="✓ Password reset.", text_color=SUCCESS)
+        self.after(1500, self.destroy)
