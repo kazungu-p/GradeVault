@@ -86,7 +86,6 @@ class UsersPage(ctk.CTkFrame):
             self._users_pane.lift()
         else:
             self._audit_pane.lift()
-            self._refresh_audit()
         for k, btn in self._page_tab_btns.items():
             btn.configure(
                 fg_color=ACCENT if k == key else "transparent",
@@ -219,7 +218,7 @@ class UsersPage(ctk.CTkFrame):
                           hover_color=BG, font=("", 11),
                           command=lambda usr=u: self._open_edit_form(usr)
                           ).pack(side="left", padx=(0, 4))
-            ctk.CTkButton(actions, text="Reset pwd", width=82, height=26,
+            ctk.CTkButton(actions, text="Reset pwd", width=90, height=26,
                           fg_color="transparent", border_color=BORDER,
                           border_width=1, text_color=TEXT_MUTED,
                           corner_radius=6, hover_color=BG, font=("", 11),
@@ -546,15 +545,18 @@ class ResetPasswordDialog(ctk.CTkToplevel):
     def __init__(self, parent, user):
         super().__init__(parent)
         self.title("Reset password")
-        self.geometry("400x260")
+        self.geometry("420x340")
         self.resizable(False, False)
         self.grab_set()
         self._user = user
         self._build()
 
     def _build(self):
-        f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=28, pady=28)
+        outer = ctk.CTkFrame(self, fg_color=BG)
+        outer.pack(fill="both", expand=True)
+
+        f = ctk.CTkFrame(outer, fg_color=BG)
+        f.pack(fill="both", expand=True, padx=28, pady=(24, 0))
 
         heading(f, "Reset password", size=15).pack(anchor="w", pady=(0, 4))
         muted(f, f"Set a new password for {self._user['full_name']}."
@@ -563,23 +565,28 @@ class ResetPasswordDialog(ctk.CTkToplevel):
         muted(f, "New password *").pack(anchor="w")
         self._pw1 = ctk.CTkEntry(f, width=340, show="•",
                                   fg_color=SURFACE, border_color=BORDER)
-        self._pw1.pack(anchor="w", pady=(4, 10))
+        self._pw1.pack(anchor="w", pady=(4, 12))
 
         muted(f, "Confirm password *").pack(anchor="w")
         self._pw2 = ctk.CTkEntry(f, width=340, show="•",
                                   fg_color=SURFACE, border_color=BORDER)
-        self._pw2.pack(anchor="w", pady=(4, 10))
+        self._pw2.pack(anchor="w", pady=(4, 12))
 
         self._msg = ctk.CTkLabel(f, text="", font=("", 12),
                                   text_color=DANGER)
         self._msg.pack(anchor="w")
 
-        btn_row = ctk.CTkFrame(f, fg_color="transparent")
-        btn_row.pack(fill="x", pady=(8, 0))
+        # Pinned footer
+        btn_row = ctk.CTkFrame(outer, fg_color=SURFACE,
+                               border_color=BORDER, border_width=1,
+                               corner_radius=0, height=56)
+        btn_row.pack(fill="x", side="bottom")
+        btn_row.pack_propagate(False)
         ghost_btn(btn_row, "Cancel", command=self.destroy,
-                  width=100).pack(side="left")
+                  width=100).pack(side="left", padx=20, pady=10)
         primary_btn(btn_row, "Reset",
-                    command=self._submit, width=100).pack(side="right")
+                    command=self._submit, width=100).pack(
+            side="right", padx=20, pady=10)
 
     def _submit(self):
         import bcrypt

@@ -10,6 +10,11 @@ class DashboardPage(ctk.CTkFrame):
         super().__init__(parent, fg_color=BG)
         self._build()
 
+    def _refresh(self):
+        for w in self.winfo_children():
+            w.destroy()
+        self._build()
+
     def _build(self):
         self.pack(fill="both", expand=True, padx=20, pady=20)
 
@@ -47,6 +52,8 @@ class DashboardPage(ctk.CTkFrame):
         if can_set_term:
             ghost_btn(term_frame, "Set term", command=self._open_term_dialog,
                       width=90).pack(side="left")
+        ghost_btn(term_frame, "↻", command=self._refresh,
+                  width=36).pack(side="left", padx=(6, 0))
 
         # ── Stat cards ────────────────────────────────────────
         stats_row = ctk.CTkFrame(self, fg_color="transparent")
@@ -268,6 +275,11 @@ class TermDialog(ctk.CTkToplevel):
         self.resizable(False, False)
         self.grab_set()
         self._on_change = on_change
+        self._build()
+
+    def _refresh(self):
+        for w in self.winfo_children():
+            w.destroy()
         self._build()
 
     def _build(self):

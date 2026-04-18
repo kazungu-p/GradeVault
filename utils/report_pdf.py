@@ -91,15 +91,18 @@ def _school_header(story, s):
         story.append(Paragraph(school_contact, s["small"]))
 
 
-def _student_header_table(result, class_label, term, s):
+def _student_header_table(result, class_label, term, s,
+                              class_total=0):
     term_str = f"Term {term['term']}, {term['year']}" if term else ""
+    pos_str  = (f"{result['position']} / {class_total}"
+                if class_total else str(result['position']))
     data = [
         ["Name:", result["full_name"],
          "Adm. No.:", result["admission_number"]],
         ["Class:", class_label,
          "Term:", term_str],
         ["Gender:", result.get("gender") or "—",
-         "Position:", f"{result['position']} in class"],
+         "Position:", pos_str],
     ]
     t = Table(data, colWidths=[2*cm, 6*cm, 2.5*cm, 5*cm])
     t.setStyle(TableStyle([
@@ -286,7 +289,8 @@ def generate_report_cards(output_path: str,
 
         # Student info
         card_elements.append(
-            _student_header_table(result, class_label, term, s))
+            _student_header_table(result, class_label, term, s,
+                                   class_total=len(results)))
         card_elements.append(Spacer(1, 0.3*cm))
 
         # Marks table

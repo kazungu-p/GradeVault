@@ -260,7 +260,13 @@ class StudentsPage(ctk.CTkFrame):
             w.destroy()
 
         if not self._students:
-            muted(self._body, "No students found.").pack(pady=24)
+            emp = ctk.CTkFrame(self._body, fg_color="transparent")
+            emp.pack(expand=True, pady=40)
+            ctk.CTkLabel(emp, text="👥", font=("", 40)).pack()
+            label(emp, "No students found", size=14,
+                  weight="bold").pack(pady=(8, 4))
+            muted(emp, "Try adjusting your filters, or add a student."
+                  ).pack()
             return
 
         for i, s in enumerate(self._students):
