@@ -5,7 +5,6 @@ Strategy:
               (which is just a renamed .db — fully portable)
   - Restore → verify the file is a valid GradeVault DB, then swap it in
 """
-import shutil
 import sqlite3
 from pathlib import Path
 from datetime import datetime

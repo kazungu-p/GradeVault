@@ -6,8 +6,9 @@ from routes.terms import get_current_term, get_all_terms, set_current_term, crea
 
 
 class DashboardPage(ctk.CTkFrame):
-    def __init__(self, parent):
+    def __init__(self, parent, on_navigate=None):
         super().__init__(parent, fg_color=BG)
+        self._on_navigate = on_navigate
         self._build()
 
     def _refresh(self):
@@ -145,21 +146,21 @@ class DashboardPage(ctk.CTkFrame):
                              cursor="hand2" if detail else "")
             c.grid(row=0, column=col, padx=(0, 10) if col < 3 else 0, sticky="ew")
             if detail:
-                c.bind("<Button-1>", lambda e, d=detail: PendingDialog(self, d))
+                c.bind("<Button-1>", lambda e, d=detail: PendingDialog(self, d, self._on_navigate))
             inner = ctk.CTkFrame(c, fg_color="transparent")
             inner.pack(padx=14, pady=12, fill="both")
             if detail:
-                inner.bind("<Button-1>", lambda e, d=detail: PendingDialog(self, d))
+                inner.bind("<Button-1>", lambda e, d=detail: PendingDialog(self, d, self._on_navigate))
             muted(inner, lbl, size=11).pack(anchor="w")
             val_lbl = label(inner, val, size=22, weight="bold")
             val_lbl.pack(anchor="w", pady=(2, 0))
             if detail:
-                val_lbl.bind("<Button-1>", lambda e, d=detail: PendingDialog(self, d))
+                val_lbl.bind("<Button-1>", lambda e, d=detail: PendingDialog(self, d, self._on_navigate))
             color = DANGER if (lbl == "Marks pending" and int(val or 0) > 0) else TEXT_MUTED
             sub_lbl = ctk.CTkLabel(inner, text=sub, font=("", 11), text_color=color)
             sub_lbl.pack(anchor="w")
             if detail:
-                sub_lbl.bind("<Button-1>", lambda e, d=detail: PendingDialog(self, d))
+                sub_lbl.bind("<Button-1>", lambda e, d=detail: PendingDialog(self, d, self._on_navigate))
 
         # ── Bottom row ────────────────────────────────────────
         bottom = ctk.CTkFrame(self, fg_color="transparent")
@@ -271,7 +272,7 @@ class TermDialog(ctk.CTkToplevel):
     def __init__(self, parent, on_change):
         super().__init__(parent)
         self.title("Manage terms")
-        self.geometry("540x560")
+        self.geometry("580x580")
         self.resizable(False, False)
         self.grab_set()
         self._on_change = on_change
@@ -283,8 +284,11 @@ class TermDialog(ctk.CTkToplevel):
         self._build()
 
     def _build(self):
-        f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=36, pady=32)
+        outer = ctk.CTkFrame(self, fg_color=BG)
+        outer.pack(fill="both", expand=True)
+
+        f = ctk.CTkFrame(outer, fg_color=BG)
+        f.pack(fill="both", expand=True, padx=28, pady=(24, 0))
 
         heading(f, "Set current term", size=16).pack(anchor="w", pady=(0, 4))
         muted(f, "Select the active term or create a new one.").pack(anchor="w", pady=(0, 14))
@@ -322,6 +326,15 @@ class TermDialog(ctk.CTkToplevel):
 
         self._msg = ctk.CTkLabel(f, text="", font=("", 12), text_color=DANGER)
         self._msg.pack(anchor="w", pady=(8, 0))
+
+        # Pinned footer
+        btn_row = ctk.CTkFrame(outer, fg_color=SURFACE,
+                               border_color=BORDER, border_width=1,
+                               corner_radius=0, height=56)
+        btn_row.pack(fill="x", side="bottom")
+        btn_row.pack_propagate(False)
+        ghost_btn(btn_row, "Close", command=self.destroy,
+                  width=100).pack(side="right", padx=20, pady=10)
 
     def _render_terms(self):
         for w in self._terms_frame.winfo_children():
@@ -404,17 +417,21 @@ class TermDialog(ctk.CTkToplevel):
 
 # ── Pending marks detail dialog ───────────────────────────────
 class PendingDialog(ctk.CTkToplevel):
-    def __init__(self, parent, pending_rows):
+    def __init__(self, parent, pending_rows, on_navigate=None):
         super().__init__(parent)
         self.title("Assessments with no marks")
-        self.geometry("520x460")
+        self.geometry("580x460")
         self.resizable(False, False)
         self.grab_set()
+        self._on_navigate = on_navigate
         self._build(pending_rows)
 
     def _build(self, rows):
-        f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=28, pady=28)
+        outer = ctk.CTkFrame(self, fg_color=BG)
+        outer.pack(fill="both", expand=True)
+
+        f = ctk.CTkFrame(outer, fg_color=BG)
+        f.pack(fill="both", expand=True, padx=28, pady=(24, 0))
 
         heading(f, "Subjects missing marks", size=15).pack(
             anchor="w", pady=(0, 4))
@@ -425,7 +442,7 @@ class PendingDialog(ctk.CTkToplevel):
             f, fg_color=SURFACE,
             border_color=BORDER, border_width=1,
             corner_radius=8)
-        scroll.pack(fill="both", expand=True, pady=(0, 14))
+        scroll.pack(fill="both", expand=True, pady=(0, 8))
 
         for r in rows:
             stream = r.get("stream") or ""
@@ -452,7 +469,35 @@ class PendingDialog(ctk.CTkToplevel):
                          font=("", 11), text_color=TEXT_MUTED,
                          anchor="w").pack(anchor="w")
 
+            # Quick-jump to marks entry
+            if self._on_navigate:
+                ctk.CTkButton(
+                    row_f, text="Enter marks →",
+                    width=120, height=26,
+                    fg_color=ACCENT, hover_color=ACCENT_DARK,
+                    text_color="white", corner_radius=6, font=("", 11),
+                    command=lambda _r=r: self._jump(_r),
+                ).pack(side="right", padx=(8, 0))
+
             from utils.theme import divider
             divider(scroll).pack(fill="x", pady=(4, 0))
 
-        primary_btn(f, "Close", command=self.destroy, width=100).pack(anchor="e")
+        # Pinned footer
+        btn_row = ctk.CTkFrame(outer, fg_color=SURFACE,
+                               border_color=BORDER, border_width=1,
+                               corner_radius=0, height=56)
+        btn_row.pack(fill="x", side="bottom")
+        btn_row.pack_propagate(False)
+        ghost_btn(btn_row, "Close", command=self.destroy,
+                  width=100).pack(side="right", padx=20, pady=10)
+
+    def _jump(self, row):
+        """Close dialog and navigate to marks entry pre-filled for this row."""
+        self.destroy()
+        if self._on_navigate:
+            self._on_navigate("marks", prefill={
+                "assessment_name": row.get("assessment_name"),
+                "class_name":      row.get("class_name"),
+                "stream":          row.get("stream"),
+                "subject_name":    row.get("subject_name"),
+            })

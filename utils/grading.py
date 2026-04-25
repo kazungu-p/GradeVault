@@ -8,10 +8,10 @@ _KCSE_DEFAULT = [
     (35, 39, "D",    3), (30, 34, "D-",  2), (0,  29, "E",    1),
 ]
 _CBE_DEFAULT = [
-    (90, 100, "EE", 4), (75, 89, "EE", 4),
-    (65,  74, "ME", 3), (50, 64, "ME", 3),
-    (35,  49, "AE", 2), (25, 34, "AE", 2),
-    (10,  24, "BE", 1), (0,   9, "BE", 1),
+    (90, 100, "EE2", 4), (75, 89, "EE1", 4),
+    (65,  74, "ME2", 3), (50, 64, "ME1", 3),
+    (35,  49, "AE2", 2), (25, 34, "AE1", 2),
+    (10,  24, "BE2", 1), (0,   9, "BE1", 1),
 ]
 
 # Simplified 4-band CBC scale (used for settings display)
@@ -23,8 +23,20 @@ _CBE_BANDS = [
 ]
 
 
+
+# ── In-memory scale cache ─────────────────────────────────────
+_scale_cache: dict = {}
+
+def invalidate_scale_cache():
+    """Call this when grading scales are saved in settings."""
+    global _scale_cache
+    _scale_cache.clear()
+
 def _load_scale(prefix: str, defaults: list) -> list:
-    """Load grading scale from settings, falling back to defaults."""
+    """Load grading scale from settings with in-memory cache."""
+    global _scale_cache
+    if prefix in _scale_cache:
+        return _scale_cache[prefix]
     try:
         from routes.settings import get_setting
         result = []
@@ -39,7 +51,9 @@ def _load_scale(prefix: str, defaults: list) -> list:
                 result.append((min_s, max_s, grade, pts))
             except (ValueError, TypeError):
                 result.append((min_def, max_def, grade, pts_def))
-        return result if result else defaults
+        scale = result if result else defaults
+        _scale_cache[prefix] = scale
+        return scale
     except Exception:
         return defaults
 
@@ -117,6 +131,15 @@ def subject_comment(grade: str, curriculum: str) -> str:
         "E":  "Fail. Must retake and put in maximum effort.",
     }
     cbe_comments = {
+        "EE2": "Exceeds expectations. Outstanding achievement.",
+        "EE1": "Exceeds expectations. Outstanding achievement.",
+        "ME2": "Meets expectations. Good and consistent performance.",
+        "ME1": "Meets expectations. Good and consistent performance.",
+        "AE2": "Approaches expectations. More effort needed to meet standards.",
+        "AE1": "Approaches expectations. More effort needed to meet standards.",
+        "BE2": "Below expectations. Requires significant improvement and support.",
+        "BE1": "Below expectations. Requires significant improvement and support.",
+        # Keep base grades for backward compat
         "EE": "Exceeds expectations. Outstanding achievement.",
         "ME": "Meets expectations. Good and consistent performance.",
         "AE": "Approaches expectations. More effort needed to meet standards.",
@@ -188,6 +211,7 @@ def _zero_subject(name: str) -> dict:
         "grade":        "E",
         "points":       1,
         "comment":      "No marks entered.",
+        "teacher_name": "",
         "is_padding":   True,
     }
 
@@ -205,7 +229,8 @@ def compute_student_result(student_id: int, assessment_id: int,
     rows = query(
         """
         SELECT m.percentage, m.raw_score, m.out_of,
-               s.name AS subject_name
+               s.name AS subject_name, m.subject_id,
+               m.class_id
         FROM marks_new m
         JOIN subjects s ON m.subject_id = s.id
         WHERE m.student_id = ? AND m.assessment_id = ?
@@ -218,18 +243,35 @@ def compute_student_result(student_id: int, assessment_id: int,
         return {"subjects": [], "selected": [], "mean": 0,
                 "grade": "—", "points": 0, "curriculum": curriculum}
 
+    # Build subject_id -> teacher name map for this class
+    teacher_map = {}
+    if rows:
+        class_id = rows[0]["class_id"]
+        t_rows = query(
+            """
+            SELECT ta.subject_id, u.full_name
+            FROM teacher_assignments ta
+            JOIN users u ON ta.user_id = u.id
+            WHERE ta.class_id = ?
+            """,
+            (class_id,),
+        )
+        for t in (t_rows or []):
+            teacher_map[t["subject_id"]] = t["full_name"]
+
     subject_marks = []
     for r in rows:
         pct   = round(r["percentage"] or 0, 1)
         grade, pts = grade_from_percentage(pct, curriculum)
         subject_marks.append({
-            "subject_name": r["subject_name"],
-            "raw_score":    r["raw_score"],
-            "out_of":       r["out_of"],
-            "percentage":   pct,
-            "grade":        grade,
-            "points":       pts,
-            "comment":      subject_comment(grade, curriculum),
+            "subject_name":  r["subject_name"],
+            "raw_score":     r["raw_score"],
+            "out_of":        r["out_of"],
+            "percentage":    pct,
+            "grade":         grade,
+            "points":        pts,
+            "comment":       subject_comment(grade, curriculum),
+            "teacher_name":  teacher_map.get(r["subject_id"], ""),
         })
 
     # Select subjects for aggregate
@@ -263,7 +305,231 @@ def compute_student_result(student_id: int, assessment_id: int,
 def compute_class_results(assessment_id: int, class_id: int) -> list[dict]:
     """
     Compute results for all students in a class, add position ranking.
+    Bulk-fetches all marks in a single query for performance.
     Returns list sorted by mean descending with position added.
+    """
+    cls = query_one("SELECT name FROM classes WHERE id=?", (class_id,)) or {}
+    class_name = cls.get("name", "")
+    curriculum = detect_curriculum(class_name)
+
+    students = query(
+        "SELECT id, full_name, admission_number, gender "
+        "FROM students WHERE class_id=? AND status='active' "
+        "ORDER BY full_name",
+        (class_id,),
+    )
+    if not students:
+        return []
+
+    # ── Bulk fetch: all marks for this class+assessment in ONE query ──
+    all_marks = query(
+        """
+        SELECT m.student_id, m.subject_id, m.percentage,
+               m.raw_score, m.out_of,
+               s.name AS subject_name
+        FROM marks_new m
+        JOIN subjects s ON m.subject_id = s.id
+        WHERE m.assessment_id = ? AND m.class_id = ?
+        ORDER BY m.student_id, s.name
+        """,
+        (assessment_id, class_id),
+    )
+
+    # ── Bulk fetch: teacher assignments for this class ──
+    teacher_map = {
+        r["subject_id"]: r["full_name"]
+        for r in (query(
+            """
+            SELECT ta.subject_id, u.full_name
+            FROM teacher_assignments ta
+            JOIN users u ON ta.user_id = u.id
+            WHERE ta.class_id = ?
+            """,
+            (class_id,),
+        ) or [])
+    }
+
+    # Group marks by student
+    from collections import defaultdict
+    marks_by_student = defaultdict(list)
+    for m in all_marks:
+        marks_by_student[m["student_id"]].append(m)
+
+    results = []
+    for s in students:
+        sid = s["id"]
+        rows = marks_by_student.get(sid, [])
+
+        if not rows:
+            continue
+
+        subject_marks = []
+        for r in rows:
+            pct   = round(r["percentage"] or 0, 1)
+            grade, pts = grade_from_percentage(pct, curriculum)
+            subject_marks.append({
+                "subject_name":  r["subject_name"],
+                "raw_score":     r["raw_score"],
+                "out_of":        r["out_of"],
+                "percentage":    pct,
+                "grade":         grade,
+                "points":        pts,
+                "comment":       subject_comment(grade, curriculum),
+                "teacher_name":  teacher_map.get(r["subject_id"], ""),
+            })
+
+        if curriculum == "8-4-4":
+            selected = select_best_7(subject_marks)
+        else:
+            selected = subject_marks
+
+        if selected:
+            mean  = round(sum(x["percentage"] for x in selected) / len(selected), 1)
+            grade, points = grade_from_percentage(mean, curriculum)
+        else:
+            mean, grade, points = 0, "—", 0
+
+        results.append({
+            "student_id":       sid,
+            "full_name":        s["full_name"],
+            "admission_number": s["admission_number"],
+            "gender":           s.get("gender", ""),
+            "subjects":         selected,
+            "all_subjects":     subject_marks,
+            "selected":         selected,
+            "mean":             mean,
+            "grade":            grade,
+            "points":           points,
+            "band":             performance_band(mean),
+            "curriculum":       curriculum,
+            "is_844":           curriculum == "8-4-4",
+            "is_cbc":           curriculum in ("ECDE", "Lower Primary",
+                                               "Upper Primary", "CBC"),
+        })
+
+    # Rank by mean descending
+    results.sort(key=lambda x: x["mean"], reverse=True)
+    pos = 1
+    for i, r in enumerate(results):
+        if i > 0 and r["mean"] < results[i-1]["mean"]:
+            pos = i + 1
+        r["position"] = pos
+
+    return results
+
+
+def compute_student_result_combined(student_id: int,
+                                     assessment_ids: list,
+                                     class_name: str) -> dict:
+    """
+    Compute result for one student across multiple assessments.
+    Each subject's score is the mean of their scores across all assessments.
+    Returns the same structure as compute_student_result.
+    """
+    curriculum = detect_curriculum(class_name)
+
+    # Fetch all marks for this student across the selected assessments
+    placeholders = ",".join("?" * len(assessment_ids))
+    rows = query(
+        f"""
+        SELECT m.subject_id, s.name AS subject_name,
+               m.out_of, m.raw_score, m.percentage, m.class_id
+        FROM marks_new m
+        JOIN subjects s ON m.subject_id = s.id
+        WHERE m.student_id = ? AND m.assessment_id IN ({placeholders})
+        ORDER BY s.name
+        """,
+        (student_id, *assessment_ids),
+    )
+
+    if not rows:
+        return {"subjects": [], "selected": [], "mean": 0,
+                "grade": "—", "points": 0, "curriculum": curriculum}
+
+    # Build teacher map in ONE query using IN clause
+    teacher_map = {}
+    class_ids_seen = list({r["class_id"] for r in rows if r["class_id"]})
+    if class_ids_seen:
+        placeholders = ",".join("?" * len(class_ids_seen))
+        t_rows = query(
+            f"""
+            SELECT ta.subject_id, u.full_name
+            FROM teacher_assignments ta
+            JOIN users u ON ta.user_id = u.id
+            WHERE ta.class_id IN ({placeholders})
+            """,
+            tuple(class_ids_seen),
+        )
+        for t in (t_rows or []):
+            teacher_map[t["subject_id"]] = t["full_name"]
+
+    # Group by subject and compute mean percentage across assessments
+    from collections import defaultdict
+    subj_data = defaultdict(lambda: {"name": "", "pcts": [],
+                                      "raw_scores": [], "out_ofs": [],
+                                      "subject_id": None})
+    for r in rows:
+        sid = r["subject_id"]
+        subj_data[sid]["name"]       = r["subject_name"]
+        subj_data[sid]["subject_id"] = sid
+        subj_data[sid]["pcts"].append(r["percentage"] or 0)
+        if r["raw_score"] is not None:
+            subj_data[sid]["raw_scores"].append(r["raw_score"])
+        if r["out_of"]:
+            subj_data[sid]["out_ofs"].append(r["out_of"])
+
+    subject_marks = []
+    for sid, d in subj_data.items():
+        pct   = round(sum(d["pcts"]) / len(d["pcts"]), 1)
+        grade, pts = grade_from_percentage(pct, curriculum)
+        # For display: show mean raw score / mean out_of if available
+        raw   = round(sum(d["raw_scores"]) / len(d["raw_scores"]), 1)                 if d["raw_scores"] else None
+        out   = round(sum(d["out_ofs"]) / len(d["out_ofs"]), 1)                 if d["out_ofs"] else 100
+        subject_marks.append({
+            "subject_name":  d["name"],
+            "raw_score":     raw,
+            "out_of":        out,
+            "percentage":    pct,
+            "grade":         grade,
+            "points":        pts,
+            "comment":       subject_comment(grade, curriculum),
+            "teacher_name":  teacher_map.get(sid, ""),
+            "asmt_count":    len(d["pcts"]),  # how many assessments contributed
+        })
+
+    subject_marks.sort(key=lambda x: x["subject_name"])
+
+    if curriculum == "8-4-4":
+        selected = select_best_7(subject_marks)
+    else:
+        selected = subject_marks
+
+    if selected:
+        mean  = round(sum(s["percentage"] for s in selected) / len(selected), 1)
+        grade, points = grade_from_percentage(mean, curriculum)
+    else:
+        mean, grade, points = 0, "—", 0
+
+    return {
+        "subjects":     selected,
+        "all_subjects": subject_marks,
+        "selected":     selected,
+        "mean":         mean,
+        "grade":        grade,
+        "points":       points,
+        "band":         performance_band(mean),
+        "curriculum":   curriculum,
+        "is_844":       curriculum == "8-4-4",
+        "is_cbc":       curriculum in ("ECDE", "Lower Primary",
+                                        "Upper Primary", "CBC"),
+    }
+
+
+def compute_class_results_combined(assessment_ids: list,
+                                    class_id: int) -> list:
+    """
+    Compute combined results for all students in a class
+    across multiple assessments. Returns list sorted by mean desc with position.
     """
     students = query(
         "SELECT id, full_name, admission_number, gender "
@@ -271,13 +537,15 @@ def compute_class_results(assessment_id: int, class_id: int) -> list[dict]:
         "ORDER BY full_name",
         (class_id,),
     )
-
     cls = query_one("SELECT name FROM classes WHERE id=?", (class_id,)) or {}
     class_name = cls.get("name", "")
 
     results = []
     for s in students:
-        result = compute_student_result(s["id"], assessment_id, class_name)
+        result = compute_student_result_combined(
+            s["id"], assessment_ids, class_name)
+        if not result["subjects"]:
+            continue
         results.append({
             "student_id":       s["id"],
             "full_name":        s["full_name"],
@@ -286,7 +554,6 @@ def compute_class_results(assessment_id: int, class_id: int) -> list[dict]:
             **result,
         })
 
-    # Rank by mean descending
     results.sort(key=lambda x: x["mean"], reverse=True)
     pos = 1
     for i, r in enumerate(results):

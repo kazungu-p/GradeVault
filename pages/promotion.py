@@ -88,7 +88,7 @@ class PromotionWizard(ctk.CTkToplevel):
     def __init__(self, parent, on_done=None):
         super().__init__(parent)
         self.title("End-of-year promotion")
-        self.geometry("720x580")
+        self.geometry("860x600")
         self.resizable(False, False)
         self.grab_set()
         self._on_done = on_done
@@ -124,9 +124,9 @@ class PromotionWizard(ctk.CTkToplevel):
         # Table header
         thead = ctk.CTkFrame(f, fg_color="#F3F4F6", corner_radius=6)
         thead.pack(fill="x", pady=(0, 4))
-        for txt, w in [("Include", 70), ("From class", 160),
-                        ("Students", 80), ("→  To class", 200),
-                        ("Status", 140)]:
+        for txt, w in [("Include", 60), ("From class", 180),
+                        ("Students", 70), ("→  To class", 230),
+                        ("Status", 200)]:
             ctk.CTkLabel(thead, text=txt, font=("", 11, "bold"),
                          text_color=TEXT_MUTED, width=w,
                          anchor="w").pack(
@@ -164,11 +164,11 @@ class PromotionWizard(ctk.CTkToplevel):
 
             ctk.CTkLabel(r, text=row["from_label"],
                          font=("", 12), text_color=TEXT,
-                         width=160, anchor="w"
+                         width=180, anchor="w"
                          ).pack(side="left", padx=(10, 0))
             ctk.CTkLabel(r, text=str(row["students"]),
                          font=("", 12), text_color=TEXT_MUTED,
-                         width=80, anchor="w"
+                         width=70, anchor="w"
                          ).pack(side="left", padx=(10, 0))
 
             # To class dropdown
@@ -176,7 +176,7 @@ class PromotionWizard(ctk.CTkToplevel):
             to_var  = ctk.StringVar(value=default)
             self._to_class_vars.append(to_var)
             ctk.CTkOptionMenu(r, variable=to_var,
-                              values=all_labels, width=190,
+                              values=all_labels, width=220,
                               fg_color=SURFACE if not row["is_terminal"]
                               else "#F3F4F6",
                               button_color=BORDER, text_color=TEXT,
@@ -184,12 +184,12 @@ class PromotionWizard(ctk.CTkToplevel):
                               ).pack(side="left", padx=(10, 0))
 
             status = ("Terminal (graduates)" if row["is_terminal"]
-                      else f"→ {row['to_label'] or '—'}")
-            ctk.CTkLabel(r, text=status, font=("", 11),
-                         text_color=TEXT_MUTED if not row["is_terminal"]
-                         else "#9CA3AF",
-                         width=140, anchor="w"
-                         ).pack(side="left", padx=(10, 0))
+                      else "")
+            if status:
+                ctk.CTkLabel(r, text=status, font=("", 11),
+                             text_color="#9CA3AF",
+                             width=200, anchor="w"
+                             ).pack(side="left", padx=(10, 0))
 
         # Footer
         foot = ctk.CTkFrame(self._outer, fg_color=SURFACE,

@@ -209,6 +209,56 @@ class MarksPage(ctk.CTkFrame):
         self._out_of     = assessment["out_of"]
         self._show_step2()
 
+    def prefill(self, data: dict):
+        """Jump to marks entry for a specific assessment/class/subject."""
+        try:
+            from routes.assessments import get_assessments
+            asmt_name = data.get("assessment_name", "")
+            asmt = next((a for a in get_assessments()
+                         if a["name"] == asmt_name), None)
+            if not asmt:
+                return
+            self._assessment = asmt
+            self._out_of     = asmt["out_of"]
+            self._show_step2()
+            self.after(100, lambda: self._prefill_step2(data))
+        except Exception:
+            pass
+
+    def _prefill_step2(self, data):
+        try:
+            cls_name  = (data.get("class_name") or "").strip()
+            stream    = (data.get("stream") or "").strip()
+            subj_name = (data.get("subject_name") or "").strip()
+            target    = f"{cls_name} {stream}".strip() if stream else cls_name
+            if hasattr(self, "_cls_var") and target:
+                self._cls_var.set(target)
+                from utils.session import Session
+                user    = Session.get()
+                classes = self._get_allowed_classes(user)
+                self._update_subject_menu(classes, user)
+            self.after(80, lambda: self._prefill_subject_and_go(subj_name))
+        except Exception:
+            pass
+
+    def _prefill_subject_and_go(self, subj_name):
+        try:
+            if hasattr(self, "_subj_var") and subj_name:
+                try:
+                    opts = self._subj_menu.cget("values") or []
+                except Exception:
+                    opts = []
+                match = next((o for o in opts
+                              if subj_name.lower() in o.lower()), None)
+                if match:
+                    self._subj_var.set(match)
+            from utils.session import Session
+            user    = Session.get()
+            classes = self._get_allowed_classes(user)
+            self._on_class_subject(classes, user)
+        except Exception:
+            pass
+
     # ── Step 2: Pick class + subject ──────────────────────────
     def _show_step2(self):
         self._clear_steps()
@@ -452,7 +502,9 @@ class MarksPage(ctk.CTkFrame):
         body.pack(fill="both", expand=True, padx=1, pady=(0, 1))
         self._grid_body = body
 
-        self._enrolled  = enrolled
+        self._enrolled     = enrolled
+        self._grid_page    = 0
+        self._grid_page_sz = 25
         self._render_grid()
 
     def _render_grid(self):
@@ -460,7 +512,27 @@ class MarksPage(ctk.CTkFrame):
             w.destroy()
         self._entries = {}
 
-        for i, s in enumerate(self._enrolled):
+        total = len(self._enrolled)
+        pages = max(1, (total + self._grid_page_sz - 1) // self._grid_page_sz)
+
+        if pages > 1:
+            nav = ctk.CTkFrame(self._grid_body, fg_color="transparent")
+            nav.pack(fill="x", pady=(4, 6))
+            muted(nav, f"Page {self._grid_page+1} / {pages}  ·  {total} students"
+                  ).pack(side="left", padx=8)
+            if self._grid_page < pages - 1:
+                ghost_btn(nav, "Next 25 →",
+                          command=self._grid_next_page,
+                          width=90).pack(side="right", padx=6)
+            if self._grid_page > 0:
+                ghost_btn(nav, "← Prev",
+                          command=self._grid_prev_page,
+                          width=80).pack(side="right")
+
+        start = self._grid_page * self._grid_page_sz
+        page_students = self._enrolled[start: start + self._grid_page_sz]
+
+        for i, s in enumerate(page_students):
             bg = SURFACE if i % 2 == 0 else "#FAFAFA"
             row = ctk.CTkFrame(self._grid_body, fg_color=bg,
                                corner_radius=0, height=38)
@@ -474,7 +546,7 @@ class MarksPage(ctk.CTkFrame):
                              text_color=color, width=w,
                              anchor="w").pack(side="left", padx=(8, 0))
 
-            _lbl(i + 1, 36)
+            _lbl(start + i + 1, 36)
             _lbl(s["admission_number"], 120, TEXT)
             ctk.CTkLabel(row, text=s["full_name"], font=("", 12),
                          text_color=TEXT, width=260,
@@ -524,6 +596,18 @@ class MarksPage(ctk.CTkFrame):
             if not entry.get():
                 entry.focus()
                 break
+
+    def _grid_next_page(self):
+        total = len(self._enrolled)
+        pages = max(1, (total + self._grid_page_sz - 1) // self._grid_page_sz)
+        if self._grid_page < pages - 1:
+            self._grid_page += 1
+            self._render_grid()
+
+    def _grid_prev_page(self):
+        if self._grid_page > 0:
+            self._grid_page -= 1
+            self._render_grid()
 
     def _focus_next(self, current_student_id):
         """Move focus to the next student's entry."""
@@ -656,8 +740,11 @@ class EnrollmentDialog(ctk.CTkToplevel):
         self._build()
 
     def _build(self):
-        f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=28, pady=28)
+        outer = ctk.CTkFrame(self, fg_color=BG)
+        outer.pack(fill="both", expand=True)
+
+        f = ctk.CTkFrame(outer, fg_color=BG)
+        f.pack(fill="both", expand=True, padx=28, pady=(24, 0))
 
         cls_label = f"{self._cls['name']}{' ' + self._cls['stream'] if self._cls.get('stream') else ''}"
         from db.connection import query_one as qone2
@@ -734,12 +821,17 @@ class EnrollmentDialog(ctk.CTkToplevel):
                                   text_color=SUCCESS)
         self._msg.pack(anchor="w")
 
-        btn_row = ctk.CTkFrame(f, fg_color="transparent")
-        btn_row.pack(fill="x", pady=(8, 0))
+        # Pinned footer
+        btn_row = ctk.CTkFrame(outer, fg_color=SURFACE,
+                               border_color=BORDER, border_width=1,
+                               corner_radius=0, height=56)
+        btn_row.pack(fill="x", side="bottom")
+        btn_row.pack_propagate(False)
         ghost_btn(btn_row, "Cancel", command=self.destroy,
-                  width=100).pack(side="left")
+                  width=100).pack(side="left", padx=20, pady=10)
         primary_btn(btn_row, "Save enrollment",
-                    command=self._save, width=140).pack(side="right")
+                    command=self._save, width=140).pack(
+            side="right", padx=20, pady=10)
 
     def _update_count(self):
         n = sum(1 for v in self._vars.values() if v.get())

@@ -300,10 +300,12 @@ class UserForm(ctk.CTkToplevel):
             self._populate(user)
 
     def _build(self):
-        outer = ctk.CTkScrollableFrame(self, fg_color=BG, corner_radius=0)
-        outer.pack(fill="both", expand=True)
-        f = ctk.CTkFrame(outer, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=36, pady=32)
+        self._outer = ctk.CTkFrame(self, fg_color=BG)
+        self._outer.pack(fill="both", expand=True)
+
+        outer = ctk.CTkScrollableFrame(self._outer, fg_color=BG, corner_radius=0)
+        outer.pack(fill="both", expand=True, padx=28, pady=(24, 0))
+        f = outer
 
         heading(f, self.title()).pack(anchor="w", pady=(0, 16))
 
@@ -379,12 +381,17 @@ class UserForm(ctk.CTkToplevel):
                                     text_color=DANGER, font=("", 12))
         self._error.pack(anchor="w")
 
-        btn_row = ctk.CTkFrame(f, fg_color="transparent")
-        btn_row.pack(fill="x", pady=(8, 0))
-        ghost_btn(btn_row, "Cancel",
-                  command=self.destroy, width=100).pack(side="left")
+        # Pinned footer
+        btn_row = ctk.CTkFrame(self._outer, fg_color=SURFACE,
+                               border_color=BORDER, border_width=1,
+                               corner_radius=0, height=56)
+        btn_row.pack(fill="x", side="bottom")
+        btn_row.pack_propagate(False)
+        ghost_btn(btn_row, "Cancel", command=self.destroy,
+                  width=100).pack(side="left", padx=20, pady=10)
         primary_btn(btn_row, "Save",
-                    command=self._submit, width=100).pack(side="right")
+                    command=self._submit, width=100).pack(
+            side="right", padx=20, pady=10)
 
         self._toggle_perms()
 
@@ -439,8 +446,11 @@ class AssignmentsDialog(ctk.CTkToplevel):
         self._load()
 
     def _build(self):
-        self._f = ctk.CTkFrame(self, fg_color=BG)
-        self._f.pack(fill="both", expand=True, padx=36, pady=32)
+        self._outer = ctk.CTkFrame(self, fg_color=BG)
+        self._outer.pack(fill="both", expand=True)
+
+        self._f = ctk.CTkFrame(self._outer, fg_color=BG)
+        self._f.pack(fill="both", expand=True, padx=28, pady=(24, 0))
 
         heading(self._f,
                 f"Assignments — {self._user['full_name']}",
@@ -489,6 +499,15 @@ class AssignmentsDialog(ctk.CTkToplevel):
         self._msg = ctk.CTkLabel(self._f, text="", font=("", 12),
                                   text_color=DANGER)
         self._msg.pack(anchor="w", pady=(8, 0))
+
+        # Pinned footer
+        btn_row = ctk.CTkFrame(self._outer, fg_color=SURFACE,
+                               border_color=BORDER, border_width=1,
+                               corner_radius=0, height=56)
+        btn_row.pack(fill="x", side="bottom")
+        btn_row.pack_propagate(False)
+        ghost_btn(btn_row, "Close", command=self.destroy,
+                  width=100).pack(side="right", padx=20, pady=10)
 
     def _load(self):
         for w in self._list_frame.winfo_children():

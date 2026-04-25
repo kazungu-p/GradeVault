@@ -1,0 +1,6 @@
+client_secrets.json
+gdrive_token.json
+*.gvbak
+__pycache__/
+*.pyc
+.DS_Store

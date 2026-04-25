@@ -324,8 +324,11 @@ class ClassForm(ctk.CTkToplevel):
         self._build()
 
     def _build(self):
-        f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=36, pady=32)
+        outer = ctk.CTkFrame(self, fg_color=BG)
+        outer.pack(fill="both", expand=True)
+
+        f = ctk.CTkFrame(outer, fg_color=BG)
+        f.pack(fill="both", expand=True, padx=28, pady=(24, 0))
 
         heading(f, self.title()).pack(anchor="w", pady=(0, 14))
 
@@ -367,10 +370,16 @@ class ClassForm(ctk.CTkToplevel):
         self._err = ctk.CTkLabel(f, text="", text_color=DANGER, font=("", 12))
         self._err.pack(anchor="w", pady=(8, 0))
 
-        btn_row = ctk.CTkFrame(f, fg_color="transparent")
-        btn_row.pack(fill="x", pady=(12, 0))
-        ghost_btn(btn_row, "Cancel", command=self.destroy, width=100).pack(side="left")
-        primary_btn(btn_row, "Save", command=self._submit, width=100).pack(side="right")
+        # Pinned footer
+        btn_row = ctk.CTkFrame(outer, fg_color=SURFACE,
+                               border_color=BORDER, border_width=1,
+                               corner_radius=0, height=56)
+        btn_row.pack(fill="x", side="bottom")
+        btn_row.pack_propagate(False)
+        ghost_btn(btn_row, "Cancel", command=self.destroy,
+                  width=100).pack(side="left", padx=20, pady=10)
+        primary_btn(btn_row, "Save", command=self._submit,
+                    width=100).pack(side="right", padx=20, pady=10)
 
     def _toggle_desc(self):
         if self._is_combined.get():
@@ -409,8 +418,11 @@ class SubjectForm(ctk.CTkToplevel):
         self._build()
 
     def _build(self):
-        f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=36, pady=32)
+        outer = ctk.CTkFrame(self, fg_color=BG)
+        outer.pack(fill="both", expand=True)
+
+        f = ctk.CTkFrame(outer, fg_color=BG)
+        f.pack(fill="both", expand=True, padx=28, pady=(24, 0))
 
         heading(f, self.title()).pack(anchor="w", pady=(0, 16))
 
@@ -432,10 +444,16 @@ class SubjectForm(ctk.CTkToplevel):
         self._err = ctk.CTkLabel(f, text="", text_color=DANGER, font=("", 12))
         self._err.pack(anchor="w")
 
-        btn_row = ctk.CTkFrame(f, fg_color="transparent")
-        btn_row.pack(fill="x", pady=(8, 0))
-        ghost_btn(btn_row, "Cancel", command=self.destroy, width=100).pack(side="left")
-        primary_btn(btn_row, "Save", command=self._submit, width=100).pack(side="right")
+        # Pinned footer
+        btn_row = ctk.CTkFrame(outer, fg_color=SURFACE,
+                               border_color=BORDER, border_width=1,
+                               corner_radius=0, height=56)
+        btn_row.pack(fill="x", side="bottom")
+        btn_row.pack_propagate(False)
+        ghost_btn(btn_row, "Cancel", command=self.destroy,
+                  width=100).pack(side="left", padx=20, pady=10)
+        primary_btn(btn_row, "Save", command=self._submit,
+                    width=100).pack(side="right", padx=20, pady=10)
 
     def _submit(self):
         name = self._name.get().strip()
@@ -463,8 +481,11 @@ class BulkPromoteDialog(ctk.CTkToplevel):
         self._build()
 
     def _build(self):
-        f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=36, pady=32)
+        outer = ctk.CTkFrame(self, fg_color=BG)
+        outer.pack(fill="both", expand=True)
+
+        f = ctk.CTkFrame(outer, fg_color=BG)
+        f.pack(fill="both", expand=True, padx=28, pady=(24, 0))
 
         heading(f, "Bulk promote", size=16).pack(anchor="w", pady=(0, 4))
         muted(f, "Move all active students from one class to another.\n"
@@ -502,12 +523,16 @@ class BulkPromoteDialog(ctk.CTkToplevel):
                                   text_color=DANGER)
         self._msg.pack(anchor="w", pady=(0, 8))
 
-        btn_row = ctk.CTkFrame(f, fg_color="transparent")
-        btn_row.pack(fill="x")
+        # Pinned footer
+        btn_row = ctk.CTkFrame(outer, fg_color=SURFACE,
+                               border_color=BORDER, border_width=1,
+                               corner_radius=0, height=56)
+        btn_row.pack(fill="x", side="bottom")
+        btn_row.pack_propagate(False)
         ghost_btn(btn_row, "Cancel", command=self.destroy,
-                  width=100).pack(side="left")
+                  width=100).pack(side="left", padx=20, pady=10)
         primary_btn(btn_row, "Promote", command=self._submit,
-                    width=100).pack(side="right")
+                    width=100).pack(side="right", padx=20, pady=10)
 
     def _submit(self):
         from_label = self._from_var.get()
@@ -542,18 +567,24 @@ class ConfirmDialog(ctk.CTkToplevel):
         self.resizable(False, False)
         self.grab_set()
         self._on_confirm = on_confirm
-        f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=36, pady=32)
-        label(f, message, size=13).pack(anchor="w", pady=(0, 20))
-        btn_row = ctk.CTkFrame(f, fg_color="transparent")
-        btn_row.pack(fill="x")
+        outer = ctk.CTkFrame(self, fg_color=BG)
+        outer.pack(fill="both", expand=True)
+        f = ctk.CTkFrame(outer, fg_color=BG)
+        f.pack(fill="both", expand=True, padx=28, pady=(24, 0))
+        label(f, message, size=13).pack(anchor="w", pady=(0, 8))
+        btn_row = ctk.CTkFrame(outer, fg_color=SURFACE,
+                               border_color=BORDER, border_width=1,
+                               corner_radius=0, height=56)
+        btn_row.pack(fill="x", side="bottom")
+        btn_row.pack_propagate(False)
         ghost_btn(btn_row, "Cancel", command=self.destroy,
-                  width=100).pack(side="left")
-        ctk.CTkButton(btn_row, text="Confirm", width=100, height=38,
+                  width=100).pack(side="left", padx=20, pady=10)
+        ctk.CTkButton(btn_row, text="Confirm", width=100, height=36,
                       fg_color=DANGER, hover_color="#DC2626",
                       corner_radius=8,
                       command=lambda: [self._on_confirm(),
-                                       self.destroy()]).pack(side="right")
+                                       self.destroy()]).pack(
+            side="right", padx=20, pady=10)
 
 
 class ErrorDialog(ctk.CTkToplevel):
@@ -563,10 +594,18 @@ class ErrorDialog(ctk.CTkToplevel):
         self.geometry("420x180")
         self.resizable(False, False)
         self.grab_set()
-        f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=36, pady=32)
-        label(f, message, size=13, color=DANGER).pack(anchor="w", pady=(0, 16))
-        primary_btn(f, "OK", command=self.destroy, width=100).pack(anchor="e")
+        outer = ctk.CTkFrame(self, fg_color=BG)
+        outer.pack(fill="both", expand=True)
+        f = ctk.CTkFrame(outer, fg_color=BG)
+        f.pack(fill="both", expand=True, padx=28, pady=(24, 0))
+        label(f, message, size=13, color=DANGER).pack(anchor="w", pady=(0, 8))
+        btn_row = ctk.CTkFrame(outer, fg_color=SURFACE,
+                               border_color=BORDER, border_width=1,
+                               corner_radius=0, height=56)
+        btn_row.pack(fill="x", side="bottom")
+        btn_row.pack_propagate(False)
+        primary_btn(btn_row, "OK", command=self.destroy,
+                    width=100).pack(side="right", padx=20, pady=10)
 
 
 # ── Retire class dialog ───────────────────────────────────────
@@ -585,8 +624,11 @@ class RetireClassDialog(ctk.CTkToplevel):
         from routes.classes import retire_class
         from db.connection import query_one
 
-        f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=36, pady=32)
+        self._outer = ctk.CTkFrame(self, fg_color=BG)
+        self._outer.pack(fill="both", expand=True)
+
+        f = ctk.CTkFrame(self._outer, fg_color=BG)
+        f.pack(fill="both", expand=True, padx=28, pady=(24, 0))
 
         cls_label = (f"{self._cls['name']} "
                      f"{self._cls['stream']}").strip() \
@@ -622,11 +664,16 @@ class RetireClassDialog(ctk.CTkToplevel):
                                   text_color=SUCCESS)
         self._msg.pack(anchor="w", pady=(0, 8))
 
-        btn_row = ctk.CTkFrame(f, fg_color="transparent")
-        btn_row.pack(fill="x")
+        # Pinned footer
+        btn_row = ctk.CTkFrame(self._outer, fg_color=SURFACE,
+                               border_color=BORDER, border_width=1,
+                               corner_radius=0, height=56)
+        btn_row.pack(fill="x", side="bottom")
+        btn_row.pack_propagate(False)
 
         ghost_btn(btn_row, "Cancel",
-                  command=self.destroy, width=80).pack(side="left")
+                  command=self.destroy, width=80).pack(
+            side="left", padx=20, pady=10)
 
         ctk.CTkButton(
             btn_row,
@@ -635,7 +682,7 @@ class RetireClassDialog(ctk.CTkToplevel):
             fg_color=WARNING, hover_color="#D97706",
             corner_radius=8, font=("", 12),
             command=lambda: self._do("archive"),
-        ).pack(side="right", padx=(8, 0))
+        ).pack(side="right", padx=(8, 20), pady=10)
 
         ctk.CTkButton(
             btn_row,
@@ -644,7 +691,7 @@ class RetireClassDialog(ctk.CTkToplevel):
             fg_color=DANGER, hover_color="#DC2626",
             corner_radius=8, font=("", 12),
             command=lambda: self._do("delete"),
-        ).pack(side="right")
+        ).pack(side="right", pady=10)
 
     def _do(self, action):
         from routes.classes import retire_class

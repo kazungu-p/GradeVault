@@ -73,8 +73,8 @@ class ChangePasswordDialog(ctk.CTkToplevel):
     def _build(self):
         outer = ctk.CTkFrame(self, fg_color=BG)
         outer.pack(fill="both", expand=True)
-        f = ctk.CTkScrollableFrame(outer, fg_color=BG, corner_radius=0)
-        f.pack(fill="both", expand=True, padx=32, pady=(24,0))
+        f = ctk.CTkFrame(outer, fg_color=BG)
+        f.pack(fill="both", expand=True, padx=28, pady=(24,0))
         heading(f, "Change password", size=15).pack(anchor="w", pady=(0,16))
 
         muted(f, "Current password").pack(anchor="w")
@@ -190,6 +190,77 @@ class App(ctk.CTk):
         self._build_sidebar()
         self._build_topbar()
         self._navigate("dashboard")
+        self._setup_keyboard_scroll()
+
+    def _setup_keyboard_scroll(self):
+        """Route arrow/page keys to whatever CTkScrollableFrame is active."""
+        def _find_scrollable(widget):
+            """Walk up widget tree to find a CTkScrollableFrame ancestor."""
+            import customtkinter as _ctk
+            w = widget
+            while w:
+                if isinstance(w, _ctk.CTkScrollableFrame):
+                    return w
+                try:
+                    w = w.master
+                except Exception:
+                    break
+            return None
+
+        def _scroll_focused(event):
+            # First try the widget that has keyboard focus
+            try:
+                focused = self.focus_get()
+                sf = _find_scrollable(focused)
+                if sf:
+                    canvas = sf._parent_canvas
+                    if event.keysym in ("Down",):
+                        canvas.yview_scroll(3, "units")
+                    elif event.keysym in ("Up",):
+                        canvas.yview_scroll(-3, "units")
+                    elif event.keysym == "Next":   # Page Down
+                        canvas.yview_scroll(1, "pages")
+                    elif event.keysym == "Prior":  # Page Up
+                        canvas.yview_scroll(-1, "pages")
+                    elif event.keysym == "End":
+                        canvas.yview_moveto(1.0)
+                    elif event.keysym == "Home":
+                        canvas.yview_moveto(0.0)
+                    return
+            except Exception:
+                pass
+            # Fallback: find the topmost visible CTkScrollableFrame in content
+            try:
+                import customtkinter as _ctk
+                def _walk(w):
+                    for child in w.winfo_children():
+                        if isinstance(child, _ctk.CTkScrollableFrame):
+                            yield child
+                        yield from _walk(child)
+                for sf in _walk(self._content_frame):
+                    canvas = sf._parent_canvas
+                    if event.keysym == "Down":
+                        canvas.yview_scroll(3, "units")
+                    elif event.keysym == "Up":
+                        canvas.yview_scroll(-3, "units")
+                    elif event.keysym == "Next":
+                        canvas.yview_scroll(1, "pages")
+                    elif event.keysym == "Prior":
+                        canvas.yview_scroll(-1, "pages")
+                    elif event.keysym == "End":
+                        canvas.yview_moveto(1.0)
+                    elif event.keysym == "Home":
+                        canvas.yview_moveto(0.0)
+                    break  # only scroll the first (outermost) one
+            except Exception:
+                pass
+
+        self.bind_all("<Down>",  _scroll_focused)
+        self.bind_all("<Up>",    _scroll_focused)
+        self.bind_all("<Next>",  _scroll_focused)
+        self.bind_all("<Prior>", _scroll_focused)
+        self.bind_all("<End>",   _scroll_focused)
+        self.bind_all("<Home>",  _scroll_focused)
 
     def _build_sidebar(self):
         sb = ctk.CTkFrame(self._shell, width=230,
@@ -301,7 +372,7 @@ class App(ctk.CTk):
         ctk.CTkLabel(badge, text=term_str, text_color=ACCENT,
                      font=("", 12, "bold")).pack(padx=10, pady=4)
 
-    def _navigate(self, key):
+    def _navigate(self, key, prefill=None):
         # Permission check
         user = Session.get()
         if user["role"] == "teacher":
@@ -331,7 +402,7 @@ class App(ctk.CTk):
         self._content_frame.pack(side="top", fill="both", expand=True)
 
         if key == "dashboard":
-            DashboardPage(self._content_frame)
+            DashboardPage(self._content_frame, on_navigate=self._navigate)
         elif key == "students":
             StudentsPage(self._content_frame)
         elif key == "users":
@@ -339,7 +410,9 @@ class App(ctk.CTk):
         elif key == "classes":
             ClassesPage(self._content_frame)
         elif key == "marks":
-            MarksPage(self._content_frame)
+            page = MarksPage(self._content_frame)
+            if prefill:
+                self.after(150, lambda: page.prefill(prefill))
         elif key == "reports":
             ReportsPage(self._content_frame)
         elif key == "analytics":
@@ -398,4 +471,15 @@ class App(ctk.CTk):
 
 if __name__ == "__main__":
     app = App()
+
+    def _on_close():
+        """Auto-backup DB silently on exit, then quit."""
+        try:
+            from utils.backup import backup
+            backup()
+        except Exception:
+            pass
+        app.destroy()
+
+    app.protocol("WM_DELETE_WINDOW", _on_close)
     app.mainloop()

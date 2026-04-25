@@ -1,5 +1,5 @@
 import bcrypt
-from db.connection import query, query_one, execute, execute_many
+from db.connection import query, query_one, execute
 from utils.session import Session
 
 

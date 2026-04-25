@@ -196,6 +196,8 @@ KCSE_SCALE = [
 
 
 
+
+
 def _ensure_new_tables():
     """Create any tables added after initial migration."""
     from db.connection import get_connection
@@ -247,6 +249,17 @@ def _add_columns_if_missing():
 def run():
     print("Running GradeVault migrations...")
     execute_script(SCHEMA)
+    execute_script("""
+        CREATE INDEX IF NOT EXISTS idx_marks_assessment ON marks_new(assessment_id);
+        CREATE INDEX IF NOT EXISTS idx_marks_student    ON marks_new(student_id);
+        CREATE INDEX IF NOT EXISTS idx_marks_class      ON marks_new(class_id);
+        CREATE INDEX IF NOT EXISTS idx_marks_asmt_class ON marks_new(assessment_id, class_id);
+        CREATE INDEX IF NOT EXISTS idx_students_class   ON students(class_id);
+        CREATE INDEX IF NOT EXISTS idx_students_status  ON students(status);
+        CREATE INDEX IF NOT EXISTS idx_teacher_assign   ON teacher_assignments(class_id, subject_id);
+        CREATE INDEX IF NOT EXISTS idx_contacts_student ON student_contacts(student_id);
+        CREATE INDEX IF NOT EXISTS idx_audit_user       ON audit_logs(user_id);
+    """)
     _add_columns_if_missing()
     _ensure_new_tables()
 

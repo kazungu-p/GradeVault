@@ -128,7 +128,7 @@ class BackupPage(ctk.CTkFrame):
         warn = ctk.CTkFrame(f, fg_color="#FEF3C7",
                              border_color="#FCD34D", border_width=1,
                              corner_radius=8)
-        warn.pack(fill="x", pady=(0, 14))
+        warn.pack(fill="x", pady=(12, 14))
         ctk.CTkLabel(
             warn,
             text="⚠  Restoring will REPLACE your current database.\n"
@@ -221,7 +221,20 @@ class BackupPage(ctk.CTkFrame):
 
         muted(f,
               "Upload a backup directly to your Google Drive.\nRequires a one-time sign-in — your data stays in your own account."
-              ).pack(anchor="w", pady=(0, 12))
+              ).pack(anchor="w", pady=(0, 8))
+
+        # Google verification note
+        warn = ctk.CTkFrame(f, fg_color="#FEF3C7",
+                             border_color="#FCD34D", border_width=1,
+                             corner_radius=8)
+        warn.pack(fill="x", pady=(0, 10))
+        ctk.CTkLabel(warn,
+                     text="⚠  Google shows a warning screen the first time:\n"
+                          "'GradeVault has not completed verification.'\n"
+                          "Click Advanced → Go to GradeVault (unsafe) to proceed.\n"
+                          "This is normal for apps in development / not yet submitted for review.",
+                     font=("", 11), text_color="#92400E",
+                     justify="left").pack(padx=12, pady=8, anchor="w")
 
         btn_row = ctk.CTkFrame(f, fg_color="transparent")
         btn_row.pack(fill="x")
@@ -375,8 +388,11 @@ class RestoreConfirmDialog(ctk.CTkToplevel):
         self._build()
 
     def _build(self):
-        f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=28, pady=28)
+        outer = ctk.CTkFrame(self, fg_color=BG)
+        outer.pack(fill="both", expand=True)
+
+        f = ctk.CTkFrame(outer, fg_color=BG)
+        f.pack(fill="both", expand=True, padx=28, pady=(24, 0))
 
         heading(f, "Restore database?", size=15).pack(
             anchor="w", pady=(0, 8))
@@ -389,19 +405,23 @@ class RestoreConfirmDialog(ctk.CTkToplevel):
                  "created automatically before restoring.",
             font=("", 12), text_color=TEXT_MUTED,
             justify="left",
-        ).pack(anchor="w", pady=(0, 20))
+        ).pack(anchor="w", pady=(0, 12))
 
-        btn_row = ctk.CTkFrame(f, fg_color="transparent")
-        btn_row.pack(fill="x")
+        # Pinned footer
+        btn_row = ctk.CTkFrame(outer, fg_color=SURFACE,
+                               border_color=BORDER, border_width=1,
+                               corner_radius=0, height=56)
+        btn_row.pack(fill="x", side="bottom")
+        btn_row.pack_propagate(False)
         ghost_btn(btn_row, "Cancel", command=self.destroy,
-                  width=100).pack(side="left")
+                  width=100).pack(side="left", padx=20, pady=10)
         ctk.CTkButton(
             btn_row, text="Yes, restore",
-            width=120, height=38,
+            width=120, height=36,
             fg_color=DANGER, hover_color="#DC2626",
             corner_radius=8, font=("", 13),
             command=lambda: [self.destroy(), self._on_confirm()],
-        ).pack(side="right")
+        ).pack(side="right", padx=20, pady=10)
 
 
 # ── Google Drive upload dialog ────────────────────────────────
@@ -428,8 +448,11 @@ class GoogleDriveUploadDialog(ctk.CTkToplevel):
         self.after(200, self._start_auth)
 
     def _build(self):
-        f = ctk.CTkFrame(self, fg_color=BG)
-        f.pack(fill="both", expand=True, padx=28, pady=28)
+        outer = ctk.CTkFrame(self, fg_color=BG)
+        outer.pack(fill="both", expand=True)
+
+        f = ctk.CTkFrame(outer, fg_color=BG)
+        f.pack(fill="both", expand=True, padx=28, pady=(24, 0))
 
         heading(f, "Google Drive backup", size=15).pack(
             anchor="w", pady=(0, 8))
@@ -449,11 +472,17 @@ class GoogleDriveUploadDialog(ctk.CTkToplevel):
         self._progress.pack(anchor="w", pady=(0, 12))
 
         self._bar = ctk.CTkProgressBar(f, width=400, mode="indeterminate")
-        self._bar.pack(anchor="w", pady=(0, 16))
+        self._bar.pack(anchor="w", pady=(0, 8))
         self._bar.start()
 
-        ghost_btn(f, "Cancel", command=self.destroy, width=100
-                  ).pack(anchor="w")
+        # Pinned footer
+        btn_row = ctk.CTkFrame(outer, fg_color=SURFACE,
+                               border_color=BORDER, border_width=1,
+                               corner_radius=0, height=56)
+        btn_row.pack(fill="x", side="bottom")
+        btn_row.pack_propagate(False)
+        ghost_btn(btn_row, "Cancel", command=self.destroy,
+                  width=100).pack(side="right", padx=20, pady=10)
 
     def _start_auth(self):
         import threading
@@ -481,13 +510,19 @@ class GoogleDriveUploadDialog(ctk.CTkToplevel):
                     creds.refresh(Request())
                 else:
                     # Need client secrets — use a built-in app credentials
-                    # User must provide their own client_secrets.json
-                    secrets = Path.home() / ".gradevault" / "client_secrets.json"
-                    if not secrets.exists():
+                    import os as _os
+                    # Search in order: next to main.py → cwd → ~/.gradevault
+                    _candidates = [
+                        Path(__file__).parent.parent / "client_secrets.json",
+                        Path(_os.getcwd()) / "client_secrets.json",
+                        Path.home() / ".gradevault" / "client_secrets.json",
+                    ]
+                    secrets = next((p for p in _candidates if p.exists()), None)
+                    if not secrets:
+                        checked = "\n".join(f"  {p}" for p in _candidates)
                         self._set_status(
-                            "⚠ client_secrets.json not found.\n"
-                            "Place your Google OAuth credentials file at:\n"
-                            f"{secrets}", DANGER)
+                            f"client_secrets.json not found.\nSearched:\n{checked}",
+                            DANGER)
                         return
 
                     flow = InstalledAppFlow.from_client_secrets_file(
